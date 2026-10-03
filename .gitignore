@@ -1,0 +1,26 @@
+# deps + build output (rebuilt by setup/update scripts)
+node_modules/
+dist/
+build/
+
+# secrets — NEVER commit (each member has their own .env)
+.env
+.env.local
+*.pem
+*.key
+
+# local runtime data (each member's own DB/scans)
+screenshots/
+reports/
+logs/
+db_data/
+*.sqlite
+*.db
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.log

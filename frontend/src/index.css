@@ -1,0 +1,141 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scrollbar-color: #2b2b45 transparent;
+  }
+  body {
+    @apply bg-void text-ink antialiased;
+  }
+  input,
+  select,
+  textarea,
+  button {
+    font-family: inherit;
+  }
+  ::selection {
+    @apply bg-primary/30 text-ink;
+  }
+  * {
+    scrollbar-width: thin;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    @apply rounded-full border-[3px] border-solid border-transparent bg-hairline2 bg-clip-padding;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    @apply bg-primary/40 bg-clip-padding;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply relative rounded-2xl border border-hairline bg-glassy shadow-panel backdrop-blur-xl;
+  }
+  .panel::before {
+    content: '';
+    @apply pointer-events-none absolute inset-0 rounded-2xl p-px;
+    background: linear-gradient(
+      150deg,
+      rgba(34, 211, 238, 0.4),
+      transparent 34%,
+      transparent 66%,
+      rgba(168, 85, 247, 0.32)
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+
+  .field {
+    @apply block w-full rounded-xl border border-hairline2 bg-white/[0.04] px-4 py-3 text-sm text-ink
+           placeholder:text-inkdim/60 transition duration-200
+           hover:border-primary/40
+           focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/15 focus:shadow-glow;
+  }
+  .field-label {
+    @apply mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-inkdim;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-grad-fill px-6 py-3 text-sm font-semibold text-white
+           shadow-glow transition duration-200 hover:bg-grad-fill-hi hover:shadow-glow-lg
+           focus:outline-none focus:ring-4 focus:ring-primary/25
+           disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-hairline2 bg-white/[0.03] px-6 py-3
+           text-sm font-medium text-ink/90 transition duration-200
+           hover:border-primary/40 hover:bg-primary/[0.08] hover:text-ink
+           focus:outline-none focus:ring-4 focus:ring-primary/20
+           disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-quiet {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-inkdim
+           transition duration-200 hover:bg-white/[0.06] hover:text-ink;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-hairline bg-white/[0.04]
+           px-3 py-1 text-[11px] font-medium text-inkdim;
+  }
+
+  .console {
+    @apply overflow-hidden rounded-xl border border-hairline bg-[#05050c] font-mono text-[13px] leading-relaxed;
+  }
+  .console-bar {
+    @apply flex items-center gap-2 border-b border-hairline bg-[#0b0b16] px-4 py-2 text-[11px] uppercase tracking-widest text-inkdim;
+  }
+  .console-body {
+    @apply space-y-1 px-4 py-3;
+  }
+
+  .stat-tile {
+    @apply relative overflow-hidden rounded-2xl border border-hairline bg-glassy p-5 shadow-panel backdrop-blur-xl;
+  }
+  .stat-tile::before {
+    content: '';
+    @apply pointer-events-none absolute inset-x-0 top-0 h-px bg-grad-neon opacity-80;
+  }
+
+  .text-glow {
+    text-shadow: 0 0 12px currentColor;
+  }
+
+  .on-dark {
+    @apply relative isolate min-h-screen w-full overflow-hidden bg-void font-sans text-ink antialiased;
+    color-scheme: dark;
+  }
+  .on-dark .fx-backdrop {
+    @apply pointer-events-none absolute inset-0 -z-10;
+    background-image: theme('backgroundImage.aurora'), theme('backgroundImage.grid');
+    background-size: cover, 44px 44px;
+    -webkit-mask-image: radial-gradient(ellipse 1000px 700px at 50% 0%, #000 12%, transparent 78%);
+    mask-image: radial-gradient(ellipse 1000px 700px at 50% 0%, #000 12%, transparent 78%);
+  }
+
+  .app-shell {
+    @apply relative isolate min-h-screen w-full overflow-hidden bg-void font-sans text-ink antialiased;
+    color-scheme: dark;
+  }
+  .app-shell .fx-backdrop {
+    @apply pointer-events-none absolute inset-0 -z-10;
+    background-image: theme('backgroundImage.aurora'), theme('backgroundImage.grid');
+    background-size: cover, 44px 44px;
+  }
+  .app-shell .fx-sheen {
+    @apply pointer-events-none absolute inset-0 -z-10;
+    background: radial-gradient(1200px 600px at 80% -10%, rgba(34,211,238,0.10), transparent 60%),
+                radial-gradient(900px 500px at 0% 110%, rgba(168,85,247,0.10), transparent 60%);
+  }
+}
