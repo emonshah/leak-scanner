@@ -1,6 +1,6 @@
 {
   "name": "leak-scanner-backend",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Full-stack conversion leak scanner backend",
   "private": true,
   "type": "commonjs",

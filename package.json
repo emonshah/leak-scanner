@@ -1,6 +1,6 @@
 {
   "name": "leak-scanner",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Full-stack conversion leak scanner - monorepo with backend and frontend",
   "private": true,
   "workspaces": [
@@ -20,6 +20,7 @@
     "lint": "npm run lint --workspaces --if-present",
     "start": "npm run start --workspace=backend",
     "dev:all": "npm run dev",
+    "start:win": "node scripts/start-win.js",
     "setup": "npm install && cd backend && npm install && cd ../frontend && npm install"
   },
   "devDependencies": {

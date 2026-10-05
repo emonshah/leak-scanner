@@ -64,7 +64,9 @@ koro" meaning: implement + verify + push + tag, per the flow below.
 - **Deploy key**: never print the private key, never commit it, never
   delete `opencode-push` from GitHub (pushes stop without it).
 - **Windows members**: XAMPP + Node 20 required (`npx playwright install
-  chrome` once). Never fight the owner's local dev ports (3000/3306/5173).
+  chrome` once). One-click run: double-click `Start-LeakScanner.bat`
+  (or `npm run start:win`) — prod single-port `:3000`, first run opens the
+  Setup Wizard. Never fight the owner's local dev ports (3000/3306/5173).
 
 ## 4. Release checklist (before every tag)
 
