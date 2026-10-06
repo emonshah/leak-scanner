@@ -45,6 +45,69 @@ async function ownedScan(
   return scan;
 }
 
+/**
+ * Live scan-log stream. Exported for verify-ws.ts (shape + crash harness).
+ *
+ * @fastify/websocket v11+ passes the raw WebSocket as the first argument;
+ * older versions passed a wrapper object with `.socket`. Support both
+ * shapes and never throw — an unhandled rejection here kills the server.
+ */
+export function scanStreamHandler(connection: unknown, req: FastifyRequest<{ Params: { id: string } }>): void {
+  type WsShape = {
+    on?: (event: string, listener: () => void) => unknown;
+    send?: (data: string) => unknown;
+    close?: (code?: number, reason?: string) => unknown;
+  };
+  const ws = ((connection as { socket?: WsShape }).socket ?? connection) as WsShape;
+  const closeSafe = (code: number, reason: string): void => {
+    try {
+      ws.close?.(code, reason);
+    } catch {
+      /* socket already closed */
+    }
+  };
+  const id = Number(req.params?.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    closeSafe(4001, 'Invalid id');
+    return;
+  }
+  let unsub: (() => void) | null = null;
+  let closed = false;
+  try {
+    ws.on?.('close', () => {
+      closed = true;
+      unsub?.();
+      unsub = null;
+    });
+  } catch {
+    /* no close event — send failures below drop the subscriber instead */
+  }
+  const owner = ownerScope(req);
+  void getScan(id)
+    .then((scan) => {
+      if (closed) return;
+      if (!scan || (owner != null && (scan.createdBy?.id ?? null) !== owner)) {
+        closeSafe(4003, 'Scan not found');
+        return;
+      }
+      try {
+        unsub = subscribe(id, {
+          send: (data) => {
+            try {
+              ws.send?.(String(data));
+            } catch {
+              unsub?.();
+              unsub = null;
+            }
+          },
+        });
+      } catch {
+        closeSafe(4003, 'Scan not found');
+      }
+    })
+    .catch(() => closeSafe(4003, 'Scan not found'));
+}
+
 export async function scanRoutes(app: FastifyInstance): Promise<void> {
   app.post<{ Body: { websiteIds?: unknown } }>('/api/scans', async (req, reply) => {
     const ids = req.body?.websiteIds;
@@ -382,25 +445,5 @@ export async function scanRoutes(app: FastifyInstance): Promise<void> {
     }
    });
 
-  app.get<{ Params: { id: string } }>('/api/scans/:id/stream', { websocket: true }, (connection, req) => {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id <= 0) {
-    connection.socket.close(4001, 'Invalid id');
-    return;
-  }
-  try {
-    const owner = ownerScope(req);
-    void (async () => {
-      const scan = await getScan(id);
-      if (!scan || (owner != null && (scan.createdBy?.id ?? null) !== owner)) {
-        connection.socket.close(4003, 'Scan not found');
-        return;
-      }
-      const unsub = subscribe(id, { send: (data) => connection.socket.send(data) });
-      connection.socket.on('close', () => unsub());
-    })();
-  } catch {
-    connection.socket.close(4003, 'Scan not found');
-  }
-  });
+  app.get<{ Params: { id: string } }>('/api/scans/:id/stream', { websocket: true }, scanStreamHandler);
 }

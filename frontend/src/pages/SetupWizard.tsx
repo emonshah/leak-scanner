@@ -274,7 +274,7 @@ export function SetupWizard() {
         }
       }
       if (!ready) {
-        setRestartError('Server ekhono back ase nai. Terminal e backend cholche kina dekhen, tarpor Login page e jan.');
+        setRestartError('The server has not come back yet. Check the terminal to see if the backend is running, then open the Login page.');
         setIsRestarting(false);
         return;
       }

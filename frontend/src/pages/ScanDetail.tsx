@@ -354,7 +354,7 @@ export function ScanDetail() {
             {findings.length > 0 && (
               <div className="flex items-center justify-between">
                 <p className="text-xs text-inkdim">
-                  {findings.length} leak{findings.length === 1 ? '' : 's'} — wrong ones delete koren, baki gula ekbare copy hobe
+                  {findings.length} leak{findings.length === 1 ? '' : 's'} — delete the wrong ones, then copy the rest in one click
                 </p>
                 <button onClick={() => void handleCopyAll()} className="btn-primary px-4 py-2 text-xs">
                   {copyAllState === 'done' ? (

@@ -30,7 +30,8 @@ koro" meaning: implement + verify + push + tag, per the flow below.
 
 1. **Implement** the feature/fix (minimal diff, existing patterns only).
 2. **Verify before commit** (all must pass):
-   - `backend`: `tsc --noEmit -p tsconfig.json` + `npm run verify:leaks`
+   - `backend`: `tsc --noEmit -p tsconfig.json` + `npm run verify:leaks` +
+     `npm run verify:ws` (websocket stream handler shapes).
    - `frontend`: `tsc --noEmit -p tsconfig.json` + `npm run build`
    - New behavior gets a targeted check (tsx script or harness case).
    - Never break: fail-closed catalog (`leakFor`), no false-positive
@@ -56,6 +57,9 @@ koro" meaning: implement + verify + push + tag, per the flow below.
 - **No claims without evidence**: every finding needs corroborated
   measurement; uncertain = MEDIUM verify-note (silent) or soft-claim HIGH
   with `soft_claim` + confidence, never absolutes in user-facing text.
+- **Error messages in English only**: every user-facing string (frontend
+  alerts, confirm dialogs, backend error payloads, start-script logs) is
+  English — no Bengali/transliterated text.
 - **Never bypass bot protection**: no CAPTCHA/challenge solvers, no
  FlareSolverr-type tools. Fingerprint hardening (UA/locale/webdriver) is
   fine; solving challenges is forbidden.
@@ -72,6 +76,7 @@ koro" meaning: implement + verify + push + tag, per the flow below.
 
 - [ ] tsc clean (backend + frontend), frontend build passes
 - [ ] `verify:leaks` green (T1–T18)
+- [ ] `verify:ws` green (stream handler T1–T4)
 - [ ] VERSION + 3× package.json in sync
 - [ ] `git status` shows no secrets (`.env`, keys, tokens)
 - [ ] Score impact noted (which sites move, which direction, why)

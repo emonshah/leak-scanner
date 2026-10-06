@@ -1,6 +1,6 @@
 {
   "name": "leak-scanner",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Full-stack conversion leak scanner - monorepo with backend and frontend",
   "private": true,
   "workspaces": [
@@ -8,9 +8,11 @@
     "frontend"
   ],
   "scripts": {
+    "predev": "node scripts/ensure-deps.js",
     "dev": "concurrently --names \"backend,frontend\" --prefix-colors \"cyan,magenta\" \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:backend": "npm run dev --workspace=backend",
     "dev:frontend": "npm run dev --workspace=frontend",
+    "prebuild": "node scripts/ensure-deps.js",
     "build": "npm run build --workspaces --if-present",
     "build:backend": "npm run build --workspace=backend",
     "build:frontend": "npm run build --workspace=frontend",
@@ -18,6 +20,7 @@
     "typecheck:backend": "npm run typecheck --workspace=backend",
     "typecheck:frontend": "npm run typecheck --workspace=frontend",
     "lint": "npm run lint --workspaces --if-present",
+    "prestart": "node scripts/ensure-deps.js",
     "start": "npm run start --workspace=backend",
     "dev:all": "npm run dev",
     "start:win": "node scripts/start-win.js",

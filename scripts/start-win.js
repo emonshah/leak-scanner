@@ -139,6 +139,14 @@ async function main() {
     openBrowser(APP_URL);
     return;
   }
+  const portBusy = await portOpen('127.0.0.1', 3000, 2000);
+  if (portBusy) {
+    fail(
+      'Port 3000 is in use by another program, and it is NOT the Leak Scanner backend.',
+      'Close whatever is using port 3000 (check Task Manager), then run this again.\n' +
+        '        Quick check: netstat -ano | findstr :3000',
+    );
+  }
   log('[OK] Backend not running on :3000 - will start it.');
 
   if (CHECK_ONLY) {
@@ -178,20 +186,51 @@ async function main() {
     log('[OK] Scan browser present');
   }
 
-  // 9. Start backend (serves API + frontend on :3000)
+  // 9. Start backend (serves API + frontend on :3000), open browser only
+  //    after /api/health answers — otherwise the page loads against a dead
+  //    server and the frontend shows a connection error.
   log('[RUN] Starting server on http://localhost:3000 (this window must stay open, Ctrl+C to stop)...');
-  openBrowser(APP_URL);
   const child = spawn(process.execPath, [BACKEND_ENTRY], {
     cwd: BACKEND_DIR,
     stdio: 'inherit',
     windowsHide: false,
   });
+  let exited = false;
   child.on('exit', (code) => {
-    log(`Server stopped (exit ${code ?? 'null'}).`);
+    exited = true;
+    if (code !== 0 && code != null) {
+      log('');
+      log(`[ERROR] Backend exited with code ${code}.`);
+      log('        Read the error above. Common fixes:');
+      log('          - Build missing/outdated:  npm run build:backend');
+      log('          - MySQL stopped: start MySQL in XAMPP, then run this again');
+      log('          - Port 3000 busy: close the other program using it');
+    } else {
+      log(`Server stopped (exit ${code ?? 'null'}).`);
+    }
     process.exit(code ?? 0);
   });
   process.on('SIGINT', () => child.kill('SIGINT'));
   process.on('SIGTERM', () => child.kill('SIGTERM'));
+
+  const deadline = Date.now() + 60000;
+  let opened = false;
+  while (!exited && Date.now() < deadline) {
+    if (await isBackendHealthy('127.0.0.1', 3000)) {
+      opened = true;
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  if (opened) {
+    log('[OK] Backend healthy on /api/health — opening browser.');
+    openBrowser(APP_URL);
+  } else if (!exited) {
+    log('[WARN] Backend still not answering /api/health after 60s.');
+    log('        Opening the browser anyway. If the page errors, run:');
+    log('          node scripts/start-win.js --check-only');
+    openBrowser(APP_URL);
+  }
 }
 
 main().catch((err) => fail('Unexpected failure.', err && err.message ? err.message : String(err)));

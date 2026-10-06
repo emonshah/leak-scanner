@@ -13,8 +13,11 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
       headers: { 'Content-Type': 'application/json', ...(options?.headers ?? {}) },
       ...options,
     });
-  } catch {
-    throw new Error('Backend er sathe connect kora jacche na. Backend cholche kina dekhen: /api/health open kore, ar terminal e backend restart koren.');
+  } catch (err) {
+    const detail = err instanceof Error && err.message ? ` (${err.message})` : '';
+    throw new Error(
+      `Cannot reach the backend server. Check that it is running by opening ${API_URL || ''}/api/health in your browser, then restart it in the terminal.${detail}`,
+    );
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {

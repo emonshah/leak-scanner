@@ -149,7 +149,7 @@ export function Websites() {
           navigate(`/scans/${data.scanIds[0]}`);
         }
       } catch (e) {
-        setActionError(`Scan start failed: ${(e as Error).message}. Backend cholche kina check koren (${window.location.origin}/api/health).`);
+        setActionError(`Scan start failed: ${(e as Error).message}. Check that the backend is running (${window.location.origin}/api/health), then restart it in the terminal.`);
       }
     })();
   };
@@ -190,7 +190,7 @@ export function Websites() {
     const handleBulkDelete = () => {
     const ids = [...selected];
     if (ids.length === 0) return;
-    if (!window.confirm(`${ids.length} website${ids.length === 1 ? '' : 's'} + sob scan data permanently delete hobe. Sure?`)) return;
+    if (!window.confirm(`${ids.length} website${ids.length === 1 ? '' : 's'} and all of their scan data will be permanently deleted. Are you sure?`)) return;
     setActionError(null);
     void (async () => {
       try {
@@ -213,7 +213,7 @@ export function Websites() {
         setSelected(new Set());
         if (data.scanIds.length > 0) setBatchIds(data.scanIds);
       } catch (e) {
-        setActionError(`Bulk scan failed: ${(e as Error).message}. Backend cholche kina check koren (${window.location.origin}/api/health).`);
+        setActionError(`Bulk scan failed: ${(e as Error).message}. Check that the backend is running (${window.location.origin}/api/health), then restart it in the terminal.`);
       }
     })();
   };
