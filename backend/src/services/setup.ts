@@ -274,6 +274,10 @@ export async function createDatabase(payload: SetupPayload): Promise<{ ok: boole
 }
 
 export function writeEnvFile(payload: SetupPayload): void {
+  const appUrl = payload.appUrl ?? 'http://localhost:3000';
+  // HTTPS origins (e.g. a Cloudflare Tunnel) require the Secure cookie flag,
+  // otherwise the browser drops the session cookie after login.
+  const cookieSecure = appUrl.startsWith('https://') ? '1' : '0';
   const lines = [
     '# Database',
     `DB_HOST=${payload.dbHost}`,
@@ -289,7 +293,8 @@ export function writeEnvFile(payload: SetupPayload): void {
     `ADMIN_PASSWORD=${payload.adminPassword}`,
     '',
     '# Server',
-    `PUBLIC_APP_URL=${payload.appUrl ?? 'http://localhost:3000'}`,
+    `PUBLIC_APP_URL=${appUrl}`,
+    `COOKIE_SECURE=${cookieSecure}`,
     'PORT=3000',
     'NODE_ENV=production',
     '',

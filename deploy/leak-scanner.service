@@ -1,0 +1,37 @@
+# leak-scanner production service (single-port origin behind Cloudflare Tunnel).
+# Install:  sudo cp deploy/leak-scanner.service /etc/systemd/system/
+#           sudo systemctl daemon-reload && sudo systemctl enable --now leak-scanner
+# App source: /opt/leak-scanner (node backend/dist/index.js serves API + built
+# frontend + live-scan WebSocket on :3000).
+#
+# WorkingDirectory MUST be the backend/ dir: the app resolves ../frontend/dist
+# (static UI), screenshots/, screenshots-research/, and logs/ from process.cwd().
+# .env lives at backend/.env (same file the Setup Wizard writes).
+[Unit]
+Description=Leak Scanner (prod origin behind Cloudflare Tunnel)
+Documentation=file:///opt/leak-scanner/README.md
+After=network-online.target mysql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=leak_scanner
+Group=leak_scanner
+WorkingDirectory=/opt/leak-scanner/backend
+EnvironmentFile=/opt/leak-scanner/backend/.env
+ExecStart=/usr/bin/node /opt/leak-scanner/backend/dist/index.js
+Restart=on-failure
+RestartSec=5
+# Graceful drain: app parks scans, closes Chromium, then exits (index.ts SIGINT handler).
+KillSignal=SIGINT
+TimeoutStopSec=60
+StandardOutput=journal
+StandardError=journal
+# Hardening — only the runtime data dirs are writable; MySQL stays local.
+NoNewPrivileges=true
+ProtectSystem=strict
+PrivateTmp=true
+ReadWritePaths=/opt/leak-scanner/backend/screenshots /opt/leak-scanner/backend/screenshots-research /opt/leak-scanner/backend/logs
+
+[Install]
+WantedBy=multi-user.target

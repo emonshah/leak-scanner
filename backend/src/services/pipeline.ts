@@ -143,6 +143,8 @@ export async function runScanPipeline(scanId: number, websiteId: number, seedUrl
     }
     if (await paused()) return;
 
+    let homeUrl: string = seedUrl;
+
     if (!artifacts.availability?.ok) {
       await log('availability', 'error', artifacts.availability?.error ?? 'Probe failed');
       // M1 park filter: persistent dead sites (timeout/failed/unavailable)
@@ -156,22 +158,74 @@ export async function runScanPipeline(scanId: number, websiteId: number, seedUrl
         await setParked(websiteId, true);
         await log('availability', 'done', 'Lead parked (do-not-email) — re-scan in 7 days.');
       }
-      const opportunityScore = await finish(buildFindings(artifacts, seedUrl, nicheId), seedUrl);
-      const blocked = artifacts.availability?.status === 'blocked';
-      await setScanStatus(scanId, blocked ? 'blocked' : 'failed', {
-        error: artifacts.availability?.error ?? 'Probe failed',
-        opportunityScore,
-      });
-      return;
+
+      // Bot-protection fallback: the fetch probe identifies as
+      // ConversionLeakScanner and WAFs (Cloudflare challenge, Sucuri geo-block,
+      // etc.) block it on sight. But the *browser* presents as a real visitor
+      // (genuine Chrome UA/locale/webdriver mask) and often loads the page
+      // fine — verified empirically on emergencydiscountplumbing.com (fetch
+      // 403 cf-mitigated:challenge, Playwright desktop 200 real title).
+      // So when the probe is blocked, don't give up: try the browser. If it
+      // also fails, THEN mark blocked. If it succeeds, continue the scan.
+      const blockedByProbe = artifacts.availability?.status === 'blocked';
+      if (blockedByProbe) {
+        await log('init', 'running', 'Probe blocked — retrying via real browser (may pass WAF challenge)...');
+        try {
+          artifacts.browser = await runBrowser(seedUrl, scanId);
+        } catch (err) {
+          artifacts.moduleErrors.push({ module: 'browser', error: msg(err) });
+        }
+        if (await paused()) return;
+        if (artifacts.browser && !artifacts.browser.blocked) {
+          // Browser got through — the site IS reachable. Override the
+          // probe's blocked verdict and continue the full scan.
+          artifacts.availability = {
+            ok: true,
+            status: 'available',
+            httpStatus: 200,
+            finalUrl: seedUrl,
+            https: seedUrl.toLowerCase().startsWith('https'),
+            redirectChain: [],
+            redirectCount: 0,
+            responseTimeMs: artifacts.browser.desktop.loadMs ?? null,
+            ttfbMs: artifacts.browser.desktop.ttfbMs ?? null,
+            headers: {},
+            certExpiry: null,
+            error: null,
+            incomplete: false,
+            incompleteReason: null,
+            attempts: 1,
+          };
+          artifacts.security = securityFromAvailability(artifacts.availability);
+          await setParked(websiteId, false);
+          homeUrl = seedUrl;
+          await log('availability', 'done', 'Connected via browser (WAF challenge passed)');
+          // fall through to the normal crawl/browser pipeline below
+        } else {
+          const opportunityScore = await finish(buildFindings(artifacts, seedUrl, nicheId), seedUrl);
+          await setScanStatus(scanId, 'blocked', {
+            error: artifacts.browser?.blockedReason ?? artifacts.availability?.error ?? 'Bot protection detected',
+            opportunityScore,
+          });
+          return;
+        }
+      } else {
+        const opportunityScore = await finish(buildFindings(artifacts, seedUrl, nicheId), seedUrl);
+        await setScanStatus(scanId, 'failed', {
+          error: artifacts.availability?.error ?? 'Probe failed',
+          opportunityScore,
+        });
+        return;
+      }
+    } else {
+      // Site answered — revive any parked lead automatically.
+      await setParked(websiteId, false);
+
+      homeUrl = artifacts.availability.finalUrl ?? seedUrl;
+      artifacts.security = securityFromAvailability(artifacts.availability);
+      await log('init', 'done', `Target locked: ${homeUrl}`);
+      await log('availability', 'done', `Connected (${artifacts.availability.status ?? 200})`);
     }
-
-    // Site answered — revive any parked lead automatically.
-    await setParked(websiteId, false);
-
-    const homeUrl = artifacts.availability.finalUrl ?? seedUrl;
-    artifacts.security = securityFromAvailability(artifacts.availability);
-    await log('init', 'done', `Target locked: ${homeUrl}`);
-    await log('availability', 'done', `Connected (${artifacts.availability.status ?? 200})`);
 
     await log('crawl', 'running', 'Crawling pages...');
     try {

@@ -1,0 +1,20 @@
+# Cloudflare Tunnel — forwards the public domain to the local app on :3000.
+# Install (after filling /etc/cloudflared/config.yml + credentials):
+#   sudo cp deploy/cloudflared.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now cloudflared
+# deploy/deploy.sh does this for you.
+[Unit]
+Description=Cloudflare Tunnel (leak-scanner-prod)
+After=network-online.target leak-scanner.service
+Wants=network-online.target
+Requires=leak-scanner.service
+
+[Service]
+Type=simple
+User=cloudflared
+ExecStart=/usr/bin/cloudflared --config /etc/cloudflared/config.yml tunnel run leak-scanner-prod
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

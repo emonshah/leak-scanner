@@ -112,7 +112,7 @@ export function Updates() {
             ) : (
               <>
                 <p className="mt-3 text-sm font-medium">
-                  v{status.current} → {status.latest} available. Update dite chan?
+                  v{status.current} → {status.latest} available. Want to update now?
                 </p>
                 {!isAdmin && (
                   <p className="mt-2 flex items-center gap-2 text-xs text-neon-amber">
@@ -127,7 +127,7 @@ export function Updates() {
                 <div className="mt-3 flex flex-wrap gap-2">
                   {status.updaterEnabled && isAdmin && (
                     <button onClick={() => setModalOpen(true)} className="btn-primary text-sm">
-                      <ArrowDownToLine className="h-4 w-4" /> Ha, update din
+                      <ArrowDownToLine className="h-4 w-4" /> Update now
                     </button>
                   )}
                   <button
@@ -137,9 +137,9 @@ export function Updates() {
                       setModalOpen(false);
                     }}
                     className="btn-ghost text-sm"
-                  >
-                    Na, pore
-                  </button>
+>
+                      Not now
+                    </button>
                 </div>
                 <p className="mt-2 text-xs text-inkdim">
                   Updating restarts the app for ~2-5 min. Websites, scans and data are never touched.

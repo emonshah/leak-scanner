@@ -1,0 +1,22 @@
+# Named Cloudflare Tunnel config.
+# Place at: /etc/cloudflared/config.yml   (after filling the placeholders below).
+#
+# The tunnel UUID + credentials JSON are created by:
+#   cloudflared tunnel create leak-scanner-prod   # prints <TUNNEL-UUID>
+#   # then copy ~/.cloudflared/<TUNNEL-UUID>.json -> /etc/cloudflared/credentials.json
+# The DNS CNAME for app.emonshah.com is created by:
+#   cloudflared tunnel route dns leak-scanner-prod app.emonshah.com
+#
+# deploy/deploy.sh does all of the above for you (named-tunnel flow).
+
+tunnel: <TUNNEL-UUID>
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  # Public domain -> the app's single HTTP origin on this server.
+  # The backend serves the API, the built frontend, and the live-scan
+  # WebSocket from this one origin (:3000 never leaves the machine).
+  - hostname: app.emonshah.com
+    service: http://localhost:3000
+  # Catch-all for direct access / Cloudflare health probes.
+  - service: http_status:404
