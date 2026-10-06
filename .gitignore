@@ -2,6 +2,10 @@
 node_modules/
 dist/
 build/
+# workspace members install via the root lockfile only — nested lockfiles
+# caused broken Windows installs (npm/cli#4828: missing rollup win32 binary)
+backend/package-lock.json
+frontend/package-lock.json
 
 # secrets — NEVER commit (each member has their own .env)
 .env
