@@ -17,6 +17,8 @@ export interface ScanRow {
   error: string | null;
   opportunityScore: number | null;
   minorIssuesCount: number;
+  qualification: 'PURSUE' | 'SKIP' | null;
+  skipReason: string | null;
   quality: ScanQuality | null;
   findingCount: number;
   createdAt: string;
@@ -34,6 +36,8 @@ interface ScanDbRow {
   error: string | null;
   opportunity_score: number | null;
   minor_issues_count: number | null;
+  qualification: string | null;
+  skip_reason: string | null;
   quality: string | object | null;
   finding_count: number;
   created_at: Date;
@@ -64,6 +68,8 @@ function toScan(r: ScanDbRow): ScanRow {
     error: r.error,
     opportunityScore: r.opportunity_score,
     minorIssuesCount: Number(r.minor_issues_count ?? 0),
+    qualification: r.qualification === 'PURSUE' || r.qualification === 'SKIP' ? r.qualification : null,
+    skipReason: r.skip_reason ?? null,
     quality,
     findingCount: Number(r.finding_count ?? 0),
     createdAt: new Date(r.created_at).toISOString(),
@@ -76,7 +82,7 @@ function toScan(r: ScanDbRow): ScanRow {
 
 const LIST_SQL = `
   SELECT s.id, s.website_id, s.status, s.started_at, s.completed_at, s.error,
-         s.opportunity_score, s.minor_issues_count, s.quality,
+         s.opportunity_score, s.minor_issues_count, s.qualification, s.skip_reason, s.quality,
          s.created_at,
          w.url AS website_url, w.normalized_url, w.user_id AS owner_id,
          u.email AS owner_email, u.display_name AS owner_name,
@@ -132,6 +138,19 @@ export async function setScanStatus(
   } else {
     await pool.query('UPDATE scans SET status = ?, error = ? WHERE id = ?', [status, extra.error ?? null, id]);
   }
+}
+
+/** Store the PURSUE/SKIP verdict (+ reason) from the qualification gate. */
+export async function setQualification(
+  id: number,
+  qualification: 'PURSUE' | 'SKIP',
+  skipReason: string | null,
+): Promise<void> {
+  await getPool().query('UPDATE scans SET qualification = ?, skip_reason = ? WHERE id = ?', [
+    qualification,
+    skipReason?.slice(0, 255) ?? null,
+    id,
+  ]);
 }
 
 export interface PageRow {

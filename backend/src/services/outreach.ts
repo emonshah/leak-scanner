@@ -12,6 +12,8 @@ export interface OutreachScan {
   id: number;
   opportunityScore: number | null;
   status: string;
+  qualification: 'PURSUE' | 'SKIP' | null;
+  skipReason: string | null;
 }
 
 /** Parse bulk textarea/CSV into rows: url[, email][, niche][, name][, business][, city] */

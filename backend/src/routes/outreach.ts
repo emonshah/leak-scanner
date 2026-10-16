@@ -109,13 +109,17 @@ export async function outreachRoutes(app: FastifyInstance): Promise<void> {
   );
 
   // Lead export: latest scan per website (owner-scoped) as JSON or CSV.
-  app.get<{ Querystring: { format?: string; minScore?: string; niche?: string; leadStatus?: string; excludeActed?: string } }>(
+  app.get<{ Querystring: { format?: string; minScore?: string; niche?: string; leadStatus?: string; excludeActed?: string; qualification?: string } }>(
     '/api/leads/export',
     async (req, reply) => {
       try {
         const owner = ownerScope(req);
         const minScore = Math.max(0, Number(req.query.minScore ?? 0) || 0);
         const niche = typeof req.query.niche === 'string' && req.query.niche ? req.query.niche.toLowerCase() : null;
+        const qualification = typeof req.query.qualification === 'string' ? req.query.qualification.toUpperCase() : null;
+        if (qualification !== null && qualification !== 'PURSUE' && qualification !== 'SKIP') {
+          return reply.code(400).send({ ok: false, error: 'Unknown qualification (use PURSUE or SKIP).' });
+        }
         const leadStatus = typeof req.query.leadStatus === 'string' && req.query.leadStatus ? req.query.leadStatus : null;
         const leadStatuses = (leadStatus ?? '')
           .split(',')
@@ -144,11 +148,20 @@ export async function outreachRoutes(app: FastifyInstance): Promise<void> {
         } else if (excludeActed) {
           where += ` AND (w.lead_status IS NULL OR w.lead_status NOT IN ('skipped','contacted','replied'))`;
         }
+        if (qualification) {
+          where += ' AND s.qualification = ?';
+          params.push(qualification);
+        }
         const [rows] = await getPool().query(
           `SELECT w.id AS website_id, w.url, w.contact_email, w.email_status, w.niche,
                   w.business_name, w.contact_name, w.city, w.lead_status,
                   s.id AS scan_id, s.status AS scan_status, s.opportunity_score AS score,
-                  (SELECT f.title FROM findings f WHERE f.scan_id = s.id ORDER BY f.priority_score DESC LIMIT 1) AS top_issue
+                  s.qualification, s.skip_reason,
+                  (SELECT f.title FROM findings f WHERE f.scan_id = s.id
+                    AND NOT ((f.module = 'mobile-ui' AND f.category IN ('layout', 'tap-targets'))
+                      OR (f.module = 'forms' AND f.category = 'unlabeled')
+                      OR (f.module = 'security' AND f.category = 'email-auth'))
+                    ORDER BY f.priority_score DESC LIMIT 1) AS top_issue
            FROM websites w
            LEFT JOIN scans s ON s.id = (SELECT MAX(s2.id) FROM scans s2 WHERE s2.website_id = w.id)
            WHERE 1=1 ${where} AND (w.do_not_email IS NULL OR w.do_not_email = 0) AND (s.opportunity_score IS NULL OR s.opportunity_score >= ?)
@@ -236,7 +249,7 @@ export async function outreachRoutes(app: FastifyInstance): Promise<void> {
             niche: ((w['niche'] as string) ?? 'general') as string,
             city: (w['city'] as string | null) ?? null,
           },
-          { id: scan.id, opportunityScore: scan.opportunityScore, status: scan.status },
+          { id: scan.id, opportunityScore: scan.opportunityScore, status: scan.status, qualification: scan.qualification, skipReason: scan.skipReason },
           findings,
           techSummary,
           sender,

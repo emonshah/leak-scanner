@@ -306,6 +306,8 @@ export interface LatestScanDTO {
   id: number;
   status: string;
   opportunityScore: number | null;
+  qualification: 'PURSUE' | 'SKIP' | null;
+  skipReason: string | null;
   findingCount: number;
   createdAt: string;
   completedAt: string | null;
@@ -318,9 +320,9 @@ export interface SuggestedAction {
 
 /**
  * Marketing rule: message only when there is something real to sell
- * (completed scan, score >= 10) AND a way to reach them (email on file,
- * not parked). Everything else is skip — except unscanned sites which
- * need a scan first.
+ * (completed scan, PURSUE qualification, score >= 10) AND a way to reach
+ * them (email on file, not parked). SKIP-qualified scans never message.
+ * Everything else is skip — except unscanned sites which need a scan first.
  */
 export function suggestLeadAction(
   w: { doNotEmail: boolean; contactEmail: string | null },
@@ -330,6 +332,9 @@ export function suggestLeadAction(
   if (!w.contactEmail) return { action: 'skip', reason: 'No email on file' };
   if (!ls) return { action: 'needs-scan', reason: 'Not scanned yet' };
   if (ls.status !== 'completed') return { action: 'needs-scan', reason: `Scan ${ls.status}` };
+  if (ls.qualification === 'SKIP') {
+    return { action: 'skip', reason: `Qualified SKIP${ls.skipReason ? ` — ${ls.skipReason}` : ''}` };
+  }
   const score = ls.opportunityScore ?? 0;
   if (score >= 10) return { action: 'message', reason: `Score ${score} — worth outreach` };
   return { action: 'skip', reason: `Score ${score} — no real leaks` };
@@ -346,18 +351,20 @@ async function withLatestScans<T extends { id: number }>(
   try {
     const ids = websites.map((w) => w.id);
     const [rows] = await getPool().query(
-      `SELECT s.website_id, s.id, s.status, s.opportunity_score, s.created_at, s.completed_at,
+      `SELECT s.website_id, s.id, s.status, s.opportunity_score, s.qualification, s.skip_reason, s.created_at, s.completed_at,
               (SELECT COUNT(*) FROM findings f WHERE f.scan_id = s.id) AS finding_count
        FROM scans s
        WHERE s.id IN (SELECT MAX(s2.id) FROM scans s2 WHERE s2.website_id IN (${ids.map(() => '?').join(',')}) GROUP BY s2.website_id)`,
       ids,
     );
     const byWebsite = new Map<number, LatestScanDTO>();
-    for (const r of rows as { website_id: number; id: number; status: string; opportunity_score: number | null; finding_count: number; created_at: Date; completed_at: Date | null }[]) {
+    for (const r of rows as { website_id: number; id: number; status: string; opportunity_score: number | null; qualification: string | null; skip_reason: string | null; finding_count: number; created_at: Date; completed_at: Date | null }[]) {
       byWebsite.set(r.website_id, {
         id: r.id,
         status: r.status,
         opportunityScore: r.opportunity_score,
+        qualification: r.qualification === 'PURSUE' || r.qualification === 'SKIP' ? r.qualification : null,
+        skipReason: r.skip_reason ?? null,
         findingCount: Number(r.finding_count ?? 0),
         createdAt: new Date(r.created_at).toISOString(),
         completedAt: r.completed_at ? new Date(r.completed_at).toISOString() : null,

@@ -122,6 +122,8 @@ export async function ensureSchemaWithPool(p: Pool): Promise<void> {
       error TEXT NULL,
       opportunity_score INT NULL,
       minor_issues_count INT NOT NULL DEFAULT 0,
+      qualification VARCHAR(16) NULL,
+      skip_reason VARCHAR(255) NULL,
       quality JSON NULL,
       progress_log JSON NULL,
       triage_brief TEXT NULL,
@@ -137,6 +139,19 @@ export async function ensureSchemaWithPool(p: Pool): Promise<void> {
       CONSTRAINT fk_scans_website FOREIGN KEY (website_id) REFERENCES websites(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
+  // Qualification gate columns (v1.3.0). Same tolerant pattern: existing
+  // DBs gain them via ALTER, fresh DBs via CREATE TABLE above.
+  for (const ddl of [
+    'ALTER TABLE scans ADD COLUMN qualification VARCHAR(16) NULL',
+    'ALTER TABLE scans ADD COLUMN skip_reason VARCHAR(255) NULL',
+  ]) {
+    try {
+      await p.query(ddl);
+    } catch (err) {
+      const errno = (err as { errno?: number }).errno;
+      if (errno !== 1060) throw err;
+    }
+  }
   await p.query(`
     CREATE TABLE IF NOT EXISTS scan_logs (
       id INT UNSIGNED NOT NULL AUTO_INCREMENT,

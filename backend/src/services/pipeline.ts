@@ -15,6 +15,7 @@ import { checkSpfDmarc, probeTlsExpiry, spfDmarcFindings, tlsFindings } from '..
 import type { FindingInput, ScanArtifacts, ScanQuality } from '../scanner/types';
 import { crossValidateCtas } from '../scanner/visibility';
 import { leakFor } from '../scanner/money-leaks';
+import { qualifySite } from '../scanner/qualification.js';
 import { harvestContactEmail } from '../scanner/email-find';
 import { VERIFY_FRESH_MS, verifyEmail } from '../scanner/email-verify';
 import { getScanStatus, isPaused, isCancelled, shouldStop } from './queue-state';
@@ -33,6 +34,7 @@ import {
   saveTech,
   saveUiChecks,
   setParked,
+  setQualification,
   setScanStatus,
 } from './scans';
 
@@ -630,6 +632,18 @@ export async function runScanPipeline(scanId: number, websiteId: number, seedUrl
       await log('technology', 'done', tm);
     }
 
+    // Qualification gate (PURSUE vs SKIP): runs on tech + built findings,
+    // before security/finish. SKIP short-circuits with score 0 and a stored
+    // reason — no findings, no outreach. PURSUE continues untouched.
+    const qual = qualifySite(tech, artifacts, raw);
+    await log('qualification', 'done', `${qual.status}: ${qual.reason}`);
+    if (qual.status === 'SKIP') {
+      await setQualification(scanId, 'SKIP', qual.reason);
+      await setScanStatus(scanId, 'completed', { opportunityScore: 0 });
+      await log('done', 'done', `Skipped (${qual.rule}) — score 0/100, excluded from outreach`);
+      return;
+    }
+
     await log('security', 'running', 'Running security checks...');
     // Money-leak catalog: CVE disclosures, wp-json user lists, and xmlrpc
     // probes never close a small-business deal (and read as threats in
@@ -667,6 +681,7 @@ export async function runScanPipeline(scanId: number, websiteId: number, seedUrl
       });
     if (minorCount > 0) sevParts.push(`${minorCount} minor noted`);
     await log('done', 'done', `Score: ${opportunityScore}/100\n  ${sevParts.join(', ') || 'No issues found'}\n  ${majorCount} money leaks + ${minorCount} minor noted`);
+    await setQualification(scanId, 'PURSUE', qual.reason);
     await setScanStatus(scanId, 'completed', { opportunityScore });
     if (await maybeReviveSkippedLead(websiteId, opportunityScore)) {
       await log('done', 'done', `Skipped lead auto-revived (re-scan scored ${opportunityScore}/100) — back in To-message`);

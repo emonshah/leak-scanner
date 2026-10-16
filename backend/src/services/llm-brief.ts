@@ -1,5 +1,6 @@
 import { fixRecipeFor } from '../scanner/fix-recipe.js';
 import { isDeadSiteSignal, leakFor, moneyHookFor, storyFor, type ClientStory } from '../scanner/money-leaks.js';
+import { anchorRankFor, isSilentLeak } from '../scanner/qualification.js';
 import { nicheById } from '../scanner/niches.js';
 import type { FindingRow } from '../scanner/types.js';
 import type { OutreachScan, OutreachWebsite } from './outreach.js';
@@ -61,9 +62,13 @@ export function buildLlmBrief(
   // fired (L1 = M3+M4 phone path, L3 = M7+M8 capture path).
   interface StoryBlock { story: ClientStory | null; items: { f: FindingRow; n: number }[] }
   const byTitle = new Map<string, { f: FindingRow; n: number }>();
+  // Matrix-only + silent excluded: M11–M14 never reach an email.
+  // Anchor hierarchy (Part 3): rank first, priorityScore breaks ties, so
+  // the email always leads with the most painful verified leak.
+  const rankOf = (f: FindingRow): number => anchorRankFor(f.module, f.category) ?? 99;
   for (const f of [...findings]
-    .filter((f) => (f.severity === 'EMERGENCY' || f.severity === 'HIGH') && leakFor(f.module, f.category) !== null)
-    .sort((a, b) => (b.priorityScore ?? 0) - (a.priorityScore ?? 0))) {
+    .filter((f) => (f.severity === 'EMERGENCY' || f.severity === 'HIGH') && leakFor(f.module, f.category) !== null && !isSilentLeak(f.module, f.category))
+    .sort((a, b) => (rankOf(a) - rankOf(b)) || ((b.priorityScore ?? 0) - (a.priorityScore ?? 0)))) {
     const cur = byTitle.get(f.title);
     if (cur) cur.n++;
     else byTitle.set(f.title, { f, n: 1 });
@@ -128,7 +133,9 @@ export function buildLlmBrief(
   if (deadSite) {
     L.push('- DO-NOT-EMAIL: the site was unreachable when scanned — no proof, no form, no screenshots exist. Park this lead and re-scan in 7 days. Do NOT write the email.');
   }
-  if (top.length === 0) {
+  if (scan.qualification === 'SKIP') {
+    L.push(`- DO-NOT-EMAIL: qualified as SKIP (${scan.skipReason ?? 'no outreach-worthy leaks'}). This lead is excluded from outreach. Do NOT write the email.`);
+  } else if (top.length === 0) {
     L.push('- No critical leaks found. Only minor polish items. Write a light-touch check-in email offering the full checklist.');
   } else {
     top.forEach((block, i) => {

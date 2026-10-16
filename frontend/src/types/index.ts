@@ -53,6 +53,8 @@ export interface ScanRow {
   completedAt: string | null;
   error: string | null;
   opportunityScore: number | null;
+  qualification: 'PURSUE' | 'SKIP' | null;
+  skipReason: string | null;
   minorIssuesCount: number;
   quality: ScanQuality | null;
   findingCount: number;
@@ -64,6 +66,8 @@ export interface LatestScan {
   id: number;
   status: ScanStatus;
   opportunityScore: number | null;
+  qualification: 'PURSUE' | 'SKIP' | null;
+  skipReason: string | null;
   findingCount: number;
   createdAt: string;
   completedAt: string | null;

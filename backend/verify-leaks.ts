@@ -19,15 +19,22 @@
  *  T14 legacy rows        -> never score, never reach the brief
  *  T15 L1 story           -> M3+M4 merge into one block
  *  T16 L3 story           -> M7+M8 merge into one block with sub-evidence
- *  T17 M1 banner          -> dead-site brief forbids outreach
- *  T18 story completeness -> every leak except M1/M2 has a story
- */
+  *  T17 M1 banner          -> dead-site brief forbids outreach
+  *  T18 story completeness -> every leak except M1/M2 has a story
+  *  T20-T24 qualification  -> excluded-stack / ecommerce / enterprise /
+  *                            clean-site SKIP, matrix leak PURSUE
+  *  T25 silent leaks       -> M11-M14 never score
+  *  T26 anchor hierarchy   -> Part-3 rank beats raw priority in the brief
+  *  T27 silent brief       -> silent findings never reach the brief
+  *  T28 SKIP brief         -> SKIP scan bans outreach (no check-in fallback)
+  */
 import { buildFindings, scoreFindings } from './src/scanner/findings';
 import { leakFor, moneyHookFor, MONEY_LEAKS, storyFor, CLIENT_STORIES } from './src/scanner/money-leaks';
+import { anchorRankFor, isSilentLeak, qualifySite } from './src/scanner/qualification';
 import { validatePhone, matchDigits } from './src/scanner/phone-validate';
 import { shouldRetryAvailability } from './src/scanner/availability';
 import { securityFindings } from './src/scanner/security-plus';
-import { enrichFindings, scoreEnriched } from './src/scanner/intelligence';
+import { enrichFindings, scoreCapped, scoreEnriched } from './src/scanner/intelligence';
 import { buildLlmBrief } from './src/services/llm-brief';
 import type {
   AvailabilityResult,
@@ -384,6 +391,102 @@ function has(a: FindingInput[], module: string, category: string): boolean {
   check('T18 all leaks except M1/M2 have stories', uncovered.length === 0, uncovered.join(','));
   const pairs = MONEY_LEAKS.flatMap((l) => l.match.map((m) => storyFor(m.module, m.category) !== null || l.id === 'M1' || l.id === 'M2'));
   check('T18 every catalog pair resolves a story (or M1/M2)', pairs.every(Boolean));
+}
+
+// T20-T28: qualification gate (PURSUE vs SKIP) + silent leaks + anchor rank.
+{
+  const techOf = (items: { technology: string; confidence: 'HIGH' | 'MEDIUM' | 'LOW' }[], primaryPlatform: string) =>
+    ({ items, primaryPlatform } as unknown as import('./src/scanner/technology').TechReport);
+  const qf = (module: string, category: string, severity: 'EMERGENCY' | 'HIGH' = 'HIGH'): FindingInput => ({
+    module, category, severity, title: `${module}/${category}`, description: 'd',
+  });
+  const link = (href: string): DiscoveredLink => ({
+    sourcePage: HOME, href, absoluteUrl: `https://example-smb.test${href}`, text: href, kind: 'internal', importance: 'normal',
+  });
+
+  // T20: Shopify stack → SKIP, even with a real phone leak present.
+  const q20 = qualifySite(
+    techOf([{ technology: 'Shopify', confidence: 'HIGH' }], 'Shopify'),
+    artifacts({ pages: [page(HOME, true)] }),
+    [qf('phone', 'call')],
+  );
+  check('T20 excluded stack SKIP', q20.status === 'SKIP' && q20.rule === 'excluded-stack', JSON.stringify(q20));
+
+  // T21: cart + checkout links → SKIP (e-commerce), lone cart link does not.
+  const cartOnly = qualifySite(
+    techOf([], 'WordPress'), artifacts({ pages: [page(HOME, true)], links: [link('/cart')] }), [qf('forms', 'friction')],
+  );
+  check('T21 lone cart link does not SKIP', cartOnly.status === 'PURSUE', JSON.stringify(cartOnly));
+  const q21 = qualifySite(
+    techOf([], 'WordPress'),
+    artifacts({ pages: [page(HOME, true)], links: [link('/cart'), link('/checkout')] }),
+    [qf('forms', 'friction')],
+  );
+  check('T21 cart+checkout SKIP ecommerce', q21.status === 'SKIP' && q21.rule === 'ecommerce', JSON.stringify(q21));
+
+  // T22: 50+ location pages → SKIP (enterprise, strong signal only).
+  const locLinks = Array.from({ length: 55 }, (_, i) => link(`/locations/city-${i}`));
+  const q22 = qualifySite(
+    techOf([], 'Custom / unidentified'),
+    artifacts({ pages: [page(HOME, true)], links: locLinks }),
+    [qf('phone', 'call')],
+  );
+  check('T22 55 location pages SKIP enterprise', q22.status === 'SKIP' && q22.rule === 'enterprise', JSON.stringify(q22));
+  const fewLocs = qualifySite(
+    techOf([], 'Custom / unidentified'),
+    artifacts({ pages: [page(HOME, true)], links: [link('/locations'), link('/locations/austin')] }),
+    [qf('phone', 'call')],
+  );
+  check('T22 small locations page does not SKIP', fewLocs.status === 'PURSUE', JSON.stringify(fewLocs));
+
+  // T23: fast clean WordPress service site, no leaks → SKIP clean-site.
+  const q23 = qualifySite(
+    techOf([], 'WordPress'),
+    artifacts({ pages: [page(HOME, true)], links: [telLink()], phones: [goodPhone()], forms: [goodForm()] }),
+    [],
+  );
+  check('T23 clean fast site SKIP clean-site', q23.status === 'SKIP' && q23.rule === 'clean-site', JSON.stringify(q23));
+
+  // T24: WordPress + real phone leak → PURSUE.
+  const q24 = qualifySite(
+    techOf([], 'WordPress'),
+    artifacts({ pages: [page(HOME, true)] }),
+    [qf('phone', 'call')],
+  );
+  check('T24 matrix leak PURSUE', q24.status === 'PURSUE', JSON.stringify(q24));
+
+  // T25: silent leaks (M11-M14) never score.
+  const m11 = { module: 'mobile-ui', category: 'layout', severity: 'HIGH', priorityScore: 30, title: 'Overflow X' };
+  const m4 = { module: 'phone', category: 'call', severity: 'HIGH', priorityScore: 25, title: 'Not tappable' };
+  const s25 = scoreCapped([m11, m4]);
+  check('T25 M11 scores nothing', s25.score === 25 && s25.parts.length === 1, JSON.stringify(s25));
+  check('T25 isSilentLeak flags M11-M14', isSilentLeak('mobile-ui', 'layout') && isSilentLeak('forms', 'unlabeled') && isSilentLeak('security', 'email-auth') && !isSilentLeak('phone', 'call'));
+
+  // T26: anchor hierarchy — L1 (rank 1) leads even with lower priority.
+  const site = { id: 1, url: HOME, businessName: null, contactName: null, contactEmail: null, niche: 'general', city: null };
+  const scan = { id: 1, opportunityScore: 60, status: 'completed', qualification: null, skipReason: null };
+  let arid = 200;
+  const arow = (module: string, category: string, title: string, priorityScore: number) => ({
+    id: arid++, scanId: 1, websiteId: 1, createdAt: new Date().toISOString(),
+    module, category, severity: 'HIGH' as const, title, description: 'd', priorityScore,
+  });
+  const a26 = buildLlmBrief(site, scan, [
+    arow('forms', 'friction', 'Form has 9 fields', 40),
+    arow('phone', 'call', 'Phone not tappable', 20),
+  ], null);
+  check('T26 anchor rank beats priority', a26.indexOf('[STORY L1]') !== -1 && a26.indexOf('[STORY L1]') < a26.indexOf('[STORY L6]'));
+  check('T26 rank map sane', anchorRankFor('phone', 'call') === 1 && anchorRankFor('performance', 'loading') === 2 && anchorRankFor('mobile-ui', 'layout') === null);
+
+  // T27: silent findings never reach the brief.
+  const a27 = buildLlmBrief(site, scan, [
+    arow('mobile-ui', 'layout', 'Overflow secret phrase', 50),
+    arow('phone', 'call', 'Phone not tappable', 20),
+  ], null);
+  check('T27 brief excludes silent leaks', !a27.includes('Overflow secret phrase') && a27.includes('Phone not tappable'));
+
+  // T28: SKIP scan brief bans outreach (no light-touch fallback).
+  const a28 = buildLlmBrief(site, { ...scan, opportunityScore: 0, qualification: 'SKIP', skipReason: 'Built on Shopify (out of scope)' }, [], null);
+  check('T28 SKIP brief bans outreach', a28.includes('DO-NOT-EMAIL') && a28.includes('qualified as SKIP') && !a28.includes('light-touch check-in'));
 }
 
 if (failures > 0) {

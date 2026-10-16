@@ -31,6 +31,13 @@ export const TECH_PRINTS: TechPrint[] = [
   { id: 'shopify', name: 'Shopify', category: 'CMS', strong: true, markers: [
     A(/cdn\.shopify\.com/i), M(/myshopify\.com/i), M(/Shopify\.theme/i), H(/x-shopid/i),
   ] },
+  { id: 'bigcommerce', name: 'BigCommerce', category: 'CMS', strong: true, markers: [
+    A(/cdn11\.bigcommerce\.com|cdn\.bigcommerce\.com/i), M(/mybigcommerce\.com/i), C(/SHOP_ACTIVE|bigcommerce_/i),
+  ] },
+  { id: 'magento', name: 'Magento', category: 'CMS', strong: true, markers: [
+    A(/\/static\/version\d+\//i), M(/Magento_|mage\/cookies\.js|window\.checkoutConfig/i),
+    M(/<meta[^>]+generator[^>]+magento/i),
+  ] },
   { id: 'wix', name: 'Wix', category: 'CMS', strong: true, markers: [
     A(/wixstatic\.com|parastorage\.com/i), M(/wix\.com\/match\/viewer/i), M(/wixEmbedsAPI/i),
   ] },

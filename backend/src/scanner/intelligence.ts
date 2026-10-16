@@ -1,5 +1,6 @@
 import { nicheById, pathKeyForCategory } from './niches';
 import { leakFor, storyFor } from './money-leaks';
+import { isSilentLeak } from './qualification';
 import { matchDigits } from './phone-validate';
 import type {
   FindingInput,
@@ -327,6 +328,7 @@ export function scoreCapped(rows: ScorableFinding[]): OpportunityBreakdown {
   for (const f of rows) {
     if (f.severity !== 'EMERGENCY' && f.severity !== 'HIGH') continue;
     if (leakFor(f.module, f.category) === null) continue; // money leaks only
+    if (isSilentLeak(f.module, f.category)) continue; // M11–M14: detected, never scored
     if (seenTitles.has(f.title)) continue;
     seenTitles.add(f.title);
     const story = storyFor(f.module, f.category);

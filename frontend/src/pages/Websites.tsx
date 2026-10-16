@@ -420,6 +420,7 @@ export function Websites() {
                   <th className="px-5 py-3">Latest scan</th>
                   <th className="px-5 py-3">Lead</th>
                   <th className="px-5 py-3">Tech</th>
+                  <th className="px-5 py-3">Qualification</th>
                   <th className="px-5 py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -507,6 +508,19 @@ export function Websites() {
                       </span>
                     </td>
                     <td className="px-5 py-3 text-inkdim">{w.primaryTech ?? '—'}</td>
+                    <td className="px-5 py-3">
+                      {!ls || !ls.qualification ? (
+                        <span className="text-xs text-inkdim">—</span>
+                      ) : ls.qualification === 'PURSUE' ? (
+                        <span className="rounded-full border border-neon-green/40 bg-neon-green/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neon-green" title={ls.skipReason ?? 'Outreach-worthy leaks found'}>
+                          Pursue
+                        </span>
+                      ) : (
+                        <span className="rounded-full border border-neon-red/40 bg-neon-red/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neon-red" title={ls.skipReason ?? 'Disqualified'}>
+                          Skip
+                        </span>
+                      )}
+                    </td>
                     <td className="whitespace-nowrap px-5 py-3 text-right">
                       <span className="inline-flex items-center gap-1.5">
                         {isWorkable(w) && (

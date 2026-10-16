@@ -67,6 +67,8 @@ CREATE TABLE IF NOT EXISTS scans (
   error TEXT NULL,
   opportunity_score INT NULL,
   minor_issues_count INT NOT NULL DEFAULT 0,
+  qualification VARCHAR(16) NULL,
+  skip_reason VARCHAR(255) NULL,
   quality JSON NULL,
   progress_log JSON NULL,
   triage_brief TEXT NULL,

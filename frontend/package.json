@@ -1,6 +1,6 @@
 {
   "name": "leak-scanner-frontend",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "Conversion leak scanner dashboard",
   "private": true,
   "type": "module",
