@@ -7,7 +7,6 @@ import { analyzeBookingEmbeds, analyzeTapTargets, extractEmbeds } from './trust'
 import { selectHiddenCtaClaims } from './visibility';
 import type {
   FindingInput,
-  FormInfo,
   OpportunityBreakdown,
   ScanArtifacts,
   Severity,
@@ -17,14 +16,17 @@ import type {
  * Deterministic finding engine + opportunity score.
  *
  * STRICT MONEY-LEAK CATALOG (see money-leaks.ts). Only problems a small
- * business will pay to fix are ever emitted:
+ * business will pay to fix are ever emitted (v1.4.0 forensic-only:
+ * machine-measured leaks; static source reads ChatGPT can do are dropped):
  *  M1 site down/timeout · M2 trust warning (HTTP/dying cert) ·
- *  M3 no callable phone anywhere · M4 phone not tappable/malformed ·
+ *  M3 no callable phone anywhere · M4 measured dialer gaps ·
  *  M5 blocked/hidden mobile CTA · M6 no CTA above the fold ·
- *  M7 dead quote/call/booking destination · M8 form goes nowhere /
- *  dead contact path · M9 long friction form · M10 mobile slowness ·
- *  M11 broken mobile layout · M12 colliding tap targets ·
- *  M13 unlabeled form fields · M14 missing SPF/DMARC.
+ *  M7 live-dead quote/call/booking destination · M10 mobile slowness ·
+ *  M11 broken mobile layout (silent) · M12 colliding tap targets (silent) ·
+ *  M14 missing SPF/DMARC (silent).
+ *  Dropped v1.4.0: malformed-tel strings, JSON-LD code-only numbers,
+ *  CTA-without-href, form structure/friction/unlabeled (M8/M9/M13),
+ *  dead-contact path.
  *
  * Dropped for good: clickjacking, CVE/version disclosures,
  * xmlrpc, author enumeration, directory listing, input keyboards,
@@ -153,22 +155,11 @@ function linkFindings(a: ScanArtifacts, out: FindingInput[]): void {
 }
 
 function phoneFindings(a: ScanArtifacts, out: FindingInput[], home: string, mega: 'EMERGENCY' | 'BOOKING'): void {
-  // Malformed tel: URIs stay EMERGENCY (dialer fails everywhere).
-  const malformed = a.phones.filter((p) => p.telMalformed).slice(0, 3);
-  for (const p of malformed) {
-    out.push({
-      module: 'phone',
-      category: 'call',
-      severity: 'EMERGENCY',
-      title: `Phone link is malformed — mobile dialer will fail (${p.raw.slice(0, 30)})`,
-      description:
-        'A tel: link was found but its number fails validation (US/UK/CA/AU/BD). Tapping it on mobile produces a dialer error — direct call loss.',
-      pageUrl: p.page,
-      measuredValue: p.raw,
-      expectedValue: 'valid tel:+E.164 number',
-      evidence: ev(p.page, { phone: p.raw, tel_link: 'malformed' }, '390x844'),
-    });
-  }
+  // Forensic-only (v1.4.0): malformed-tel string checks and JSON-LD
+  // code-only reads are dropped — ChatGPT derives those from source.
+  // What stays is machine-measured: browser hit-test offenders, the
+  // site-wide no-tel-wrap rule (crawl + browser negative-confirm),
+  // and M3 absence (crawl + all-viewport dial silence).
   // Preferred truth: browser hit-test offenders (real visibility + box).
   // EMERGENCY for emergency niches, HIGH for others.
   // Anti-false-positive filter (call-tracking reality): an offender is NOT
@@ -226,24 +217,8 @@ function phoneFindings(a: ScanArtifacts, out: FindingInput[], home: string, mega
     return;
     }
   }
-  // Code-only numbers (JSON-LD/schema telephone): the number exists in
-  // page code but no visitor can see or tap it. Sharper than M3 — the
-  // owner HAS a number, it just never reaches a thumb. HIGH, capped.
-  const codeOnly = a.phones.filter((p) => p.codeOnly && !p.hasTelLink && !p.telMalformed).slice(0, 3);
-  for (const p of codeOnly) {
-    out.push({
-      module: 'phone',
-      category: 'call',
-      severity: sev,
-      title: `Phone number exists but visitors can't reach it (${p.raw.slice(0, 30)})`,
-      description:
-        'The number lives only in page code (structured data) with no visible, tappable phone link anywhere on the site. Search engines may know it, but mobile visitors cannot tap-to-call — add a visible tel: link in the header.',
-      pageUrl: p.page,
-      measuredValue: p.raw,
-      expectedValue: `visible tel:${p.e164 ?? p.normalized}`,
-      evidence: ev(p.page, { phone: p.raw, e164: p.e164 ?? p.normalized, tel_link: 'not detected', source: 'json-ld' }, '390x844'),
-    });
-  }
+  // Code-only numbers (JSON-LD/schema telephone): dropped v1.4.0 —
+  // pure source reading, ChatGPT-derivable. No claim emitted.
   // Site-level rule: when a working tap-to-call path exists anywhere on
   // the site, stray plain-text number mentions are secondary copy — not a
   // money leak (owners tap the Call button and it dials). Leaky-M4 fires
@@ -339,17 +314,8 @@ function ctaFindings(a: ScanArtifacts, out: FindingInput[], home: string): void 
         measuredValue: c.destinationStatus != null ? `HTTP ${c.destinationStatus}` : 'unreachable',
         evidence: ev(c.page, { cta_text: c.text, destination: (c.href ?? '').slice(0, 300) }),
       });
-    } else if (!c.href) {
-      out.push({
-        module: 'cta',
-        category: 'conversion-cta',
-        severity: 'MEDIUM',
-        title: `CTA without a link destination ("${c.text.slice(0, 50)}")`,
-        description: 'A CTA-styled button has no link. It may rely on JavaScript — manual verification required to confirm it works.',
-        pageUrl: c.page,
-        evidence: ev(c.page, { cta_text: c.text }),
-      });
     }
+    // Dropped v1.4.0: CTA-without-href (static DOM read, ChatGPT-derivable).
   }
   // Mobile visibility from the browser pass — verdict-aware, de-duplicated.
   // Only observations with genuinely no visible box become claims, and only
@@ -427,120 +393,14 @@ function ctaFindings(a: ScanArtifacts, out: FindingInput[], home: string): void 
   }
 }
 
-function formFindings(a: ScanArtifacts, out: FindingInput[]): void {
-  // P5/P7 ONLY. GET-method, no-contact-field and CAPTCHA are NOT in the
-  // 16-problem catalog — suppressed.
-  if (a.forms.length === 0) return;
-  // One finding per physical form: the same form embedded on /contact,
-  // /contact?variant=.., or (pre-fragment-strip) /contact#.. is ONE
-  // opportunity — evidence keeps the first page.
-  const seenForms = new Set<string>();
-  const formSig = (f: FormInfo): string =>
-    `${f.action ?? '(none)'}::${f.fieldCount}::${f.fields.map((x) => `${x.name}:${x.type}`).join(',')}`;
-  for (const f of a.forms.slice(0, 5)) {
-    const sig = formSig(f);
-    if (seenForms.has(sig)) continue;
-    seenForms.add(sig);
-    // P5: unsubmittable form.
-    if (!f.hasSubmit) {
-      out.push({
-        module: 'forms', category: 'structure', severity: 'EMERGENCY',
-        title: 'Contact form has no submit button',
-        description: `A form on ${f.page} exposes ${f.fieldCount} fields but no submit control was detected. Visitors cannot send the request — the quote path is unsubmittable.`,
-        pageUrl: f.page,
-        evidence: ev(f.page, { action: f.action ?? '(none)', fields: String(f.fieldCount) }),
-      });
-    }
-    // P5: broken action. Honesty rules: a form WITH a submit control and no
-    // action usually submits (same-URL/AJAX) — MEDIUM verify-note, never
-    // "vanish" EMERGENCY. js: schemes are JS-handled until proven otherwise.
-    // NOTE: no-submit forms already claimed EMERGENCY above — the endpoint
-    // sub-branches below only run when a submit control exists (no double).
-    const action: string = f.action ?? '';
-    const jsHandled = f.jsSubmit || /^(javascript:)/i.test(action);
-    if (action === '' && f.hasSubmit) {
-      out.push({
-        module: 'forms', category: 'structure', severity: 'MEDIUM',
-        title: 'Contact form endpoint not visible',
-        description: `A form on ${f.page} has a submit control but no action attribute (same-URL or AJAX submit likely). Verify the endpoint before outreach.`,
-        pageUrl: f.page,
-        measuredValue: '(no action)',
-        expectedValue: 'valid https endpoint',
-        evidence: ev(f.page, { action: '(missing)' }),
-      });
-    } else if (/^(javascript:|mailto:)/i.test(action)) {
-      out.push({
-        module: 'forms', category: 'structure', severity: jsHandled || /^mailto:/i.test(action) ? 'MEDIUM' : 'EMERGENCY',
-        title: jsHandled ? `Form submits via script ("${action.slice(0, 40)}")` : `Form cannot submit ("${action.slice(0, 40)}")`,
-        description: 'The form action is not a server endpoint. Likely JS-handled — verify before claiming it is broken.',
-        pageUrl: f.page,
-        measuredValue: action,
-        expectedValue: 'valid https endpoint',
-        evidence: ev(f.page, { action }),
-      });
-    }
-    // P7: excessive friction — 7+ VISIBLE interactive fields on a service page.
-    // Hidden/system inputs (honeypots, CSRF, captcha) never count.
-    const frictionCount = f.fieldCount;
-    if (frictionCount >= 7) {
-      out.push({
-        module: 'forms', category: 'friction', severity: 'HIGH',
-        title: `High Form Abandonment Risk (${frictionCount} visible fields)`,
-        description: 'Seven or more visible interactive fields on a quote/contact form intimidates mobile visitors and causes high abandonment. Trim to essential fields.',
-        pageUrl: f.page,
-        measuredValue: `${frictionCount} visible fields`,
-        expectedValue: '≤6 visible fields',
-        evidence: ev(f.page, { visible_fields: String(frictionCount) }),
-      });
-    }
-    // P7b: unlabeled fields — 3+ visible fields with no <label>, wrapping
-    // label, aria-label, or placeholder. Visitors cannot tell what to type.
-    if (f.unlabeledFields >= 3) {
-      out.push({
-        module: 'forms', category: 'unlabeled', severity: 'HIGH',
-        title: `Quote form fields confuse visitors (${f.unlabeledFields} unlabeled)`,
-        description: `${f.unlabeledFields} visible fields on the form at ${f.page} have no label, placeholder, or accessible name. Mobile visitors cannot tell what to type and abandon the form.`,
-        pageUrl: f.page,
-        measuredValue: `${f.unlabeledFields} unlabeled fields`,
-        expectedValue: 'every field labeled',
-        evidence: ev(f.page, { unlabeled_fields: String(f.unlabeledFields), visible_fields: String(f.fieldCount) }),
-      });
-    }
-  }
-  // NOTE: contactPathFindings is called from buildFindings (not here),
-  // because the dead-contact case means zero forms — and this function
-  // early-returns on empty forms above.
-}
+// Dropped v1.4.0 (forensic-only thesis): form structure / friction /
+// unlabeled (M8/M9/M13) and the dead-contact companion are pure static
+// HTML reads — ChatGPT derives them from source. No finding emitted.
+// The form extractors (forms.ts) still feed qualification + evidence.
 
 export const CONTACT_PATH_RE = /contact|quote|book|estimate|appointment|get-started|get started|signup|sign-up|schedule|scheduling|consult|consultation|demo|message|calendar|trial|callback/i;
 
-function contactPathFindings(a: ScanArtifacts, out: FindingInput[]): void {
-  let fired = 0;
-  for (const p of a.pages) {
-    if (fired >= 2) break;
-    if (p.isHomepage) continue;
-    if (!CONTACT_PATH_RE.test(p.url)) continue;
-    if (p.statusCode == null || p.statusCode >= 400) continue;
-    const hasForm = a.forms.some((f) => f.page === p.url);
-    if (hasForm) continue;
-    const hasPhone = a.phones.some((ph) => ph.page === p.url);
-    if (hasPhone) continue;
-    const hasMailto = a.links.some((l) => l.kind === 'mailto' && l.sourcePage === p.url);
-    if (hasMailto) continue;
-    fired++;
-    out.push({
-      module: 'mobile-ui',
-      category: 'dead-contact',
-      severity: 'HIGH',
-      title: 'Contact page has no way to contact you',
-      description: `The page at ${p.url} looks like the contact/quote path but exposes no form, no phone number, and no email link in the crawled markup. High-intent visitors arrive and leave with nothing to do.`,
-      pageUrl: p.url,
-      measuredValue: 'no form, phone, or email link',
-      expectedValue: 'working form or tappable phone',
-      evidence: ev(p.url, { page: p.url, site_forms_total: String(a.forms.length), site_phones_total: String(a.phones.length) }),
-    });
-  }
-}
+// Dropped v1.4.0: dead-contact companion (static absence read).
 
 function mobileUiFindings(a: ScanArtifacts, out: FindingInput[], home: string): void {
   const m = a.browser?.mobile;
@@ -622,11 +482,9 @@ export function buildFindings(a: ScanArtifacts, homeUrl?: string, nicheId?: stri
   availabilityFindings(a, out);
   // If the site is unreachable/blocked, deeper modules have no valid data.
   if (!a.availability?.ok) return out;
-  linkFindings(a, out); // M7
-  phoneFindings(a, out, home, megaGroupFor(nicheId)); // M3/M4
-  ctaFindings(a, out, home); // M5/M7
-  formFindings(a, out); // M8/M9
-  contactPathFindings(a, out); // M8 dead-contact companion (zero-form case)
+  linkFindings(a, out); // M7 (live-broken destinations only)
+  phoneFindings(a, out, home, megaGroupFor(nicheId)); // M3/M4 (measured only)
+  ctaFindings(a, out, home); // M5/M7 (browser verdicts + live destinations)
   mobileUiFindings(a, out, home); // M5/M6/M11
   out.push(...evaluatePerformance(a, homeUrl, nicheId)); // M10 (mobile only, niche-aware)
   // M7: booking embeds (passive: markup + network/console corroboration).

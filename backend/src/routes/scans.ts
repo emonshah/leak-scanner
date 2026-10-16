@@ -263,11 +263,8 @@ export async function scanRoutes(app: FastifyInstance): Promise<void> {
   const VIEWPORT_FILES = new Set([
     'mobile', 'desktop', 'tablet',
     'mobile-full', 'desktop-full', 'tablet-full',
-    'mobile-annotated',
   ]);
   const CROP_FILE_RE = /^(mobile|desktop|tablet)(-recheck)?-cta-\d+\.png$/;
-  const HERO_FILE_RE = /^(mobile|desktop|tablet)(-recheck)?-hero\.webp$/;
-  const HERO_ANNOTATED_RE = /^mobile(-recheck)?-hero-annotated\.webp$/;
   const EV_FILE_RE = /^ev-(phone|overflow|cta|tap)-\d+\.webp$/;
 
   app.get<{ Params: { id: string }; Querystring: { viewport?: string; file?: string } }>(
@@ -279,13 +276,7 @@ export async function scanRoutes(app: FastifyInstance): Promise<void> {
       let contentType = 'image/png';
       if (typeof req.query.file === 'string' && CROP_FILE_RE.test(req.query.file)) {
         name = req.query.file;
-      } else if (typeof req.query.file === 'string' && HERO_FILE_RE.test(req.query.file)) {
-        name = req.query.file;
-        contentType = 'image/webp';
       } else if (typeof req.query.file === 'string' && EV_FILE_RE.test(req.query.file)) {
-        name = req.query.file;
-        contentType = 'image/webp';
-      } else if (typeof req.query.file === 'string' && HERO_ANNOTATED_RE.test(req.query.file)) {
         name = req.query.file;
         contentType = 'image/webp';
       } else if (typeof req.query.viewport === 'string' && VIEWPORT_FILES.has(req.query.viewport)) {
@@ -313,8 +304,9 @@ export async function scanRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  // List servable evidence files for a scan (heroes + annotated + clips).
-  // Only allowlisted names are ever returned — no raw directory dump.
+  // List servable evidence files for a scan (per-finding clips only —
+  // heroes/annotated retired v1.4.0). heroes/annotated stay as empty
+  // arrays so older frontends keep rendering.
   app.get<{ Params: { id: string } }>('/api/scans/:id/screenshots', async (req, reply) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) return reply.code(400).send({ ok: false, error: 'Invalid id.' });
@@ -335,12 +327,8 @@ export async function scanRoutes(app: FastifyInstance): Promise<void> {
     } catch {
       return { ok: true, heroes: [], annotated: [], clips: [] };
     }
-    const heroes = entries
-      .filter((f) => HERO_FILE_RE.test(f))
-      .sort((a, b) => a.localeCompare(b));
-    const annotated = entries.filter((f) => HERO_ANNOTATED_RE.test(f)).sort();
     const clips = entries.filter((f) => EV_FILE_RE.test(f)).sort();
-    return { ok: true, heroes, annotated, clips };
+    return { ok: true, heroes: [], annotated: [], clips };
   });
 
   app.post<{ Params: { id: string } }>('/api/scans/:id/retry', async (req, reply) => {    const id = Number(req.params.id);

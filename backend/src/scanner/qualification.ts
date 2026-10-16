@@ -35,9 +35,11 @@ export interface Qualification {
   reason: string;
 }
 
-/** Matrix leaks that alone justify outreach (Part 2, categories 1–5). */
+/** Matrix leaks that alone justify outreach (forensic-only, v1.4.0).
+ *  M7 = live-broken destinations (machine-probed). M8/M9 dropped: static
+ *  HTML reads ChatGPT derives from source. */
 export const QUALIFYING_LEAKS: readonly MoneyLeakId[] = [
-  'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10',
+  'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M10',
 ];
 
 /** Detected but silent: kept in tabs, excluded from score/brief/export. */
@@ -61,9 +63,9 @@ export function isSilentLeak(module: string, category: string): boolean {
 
 /**
  * Part 3 anchor hierarchy rank (lower = lead the email with this).
- * Ranked: 1 phone dialer (M3/M4), 2 hero/LCP bleed (M10), 3 dead route
- * (M7/M8), 5 form friction (M9), 6 below-fold (M6). Rank 4 (missing
- * sticky CTA) has no detector yet — arrives in Release 2.
+ * Ranked: 1 phone dialer (M3/M4), 2 hero/LCP bleed (M10), 3 live-dead
+ * route (M7), 6 below-fold (M6). Rank 4 (missing sticky CTA) + form
+ * ranks arrive with Release-2 detectors.
  * Unranked-but-qualifying (M5 covered CTA, M2 SSL wall): null → brief
  * orders them by priorityScore after the ranked blocks.
  */
@@ -77,10 +79,7 @@ export function anchorRankFor(module: string, category: string): number | null {
     case 'M10':
       return 2;
     case 'M7':
-    case 'M8':
       return 3;
-    case 'M9':
-      return 5;
     case 'M6':
       return 6;
     default:

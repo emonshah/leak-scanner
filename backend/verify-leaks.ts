@@ -6,8 +6,8 @@
  *  T1 clean site          -> zero findings (DROP rules emit nothing)
  *  T2 phone text, no tel  -> M4 phone/call HIGH, and NO M3
  *  T3 no phone anywhere   -> M3 phone/call-missing HIGH (BOOKING default)
- *  T4 bare contact page   -> M8 mobile-ui/dead-contact HIGH
- *  T5 malformed tel:      -> M4 EMERGENCY
+  *  T4 retired (v1.4.0)  -> dead-contact emits nothing
+  *  T5 retired (v1.4.0)  -> malformed-tel string check emits nothing
  *  T6 fail-closed guard   -> every emitted finding maps via leakFor()
  *  T7 brief quality       -> Email angle present, banned (dropped) words absent
  *  T8 scoring             -> leaky fixture scores above clean fixture
@@ -18,7 +18,8 @@
  *  T13 suite FAILs gated  -> pipeline drops non-catalog conversions
  *  T14 legacy rows        -> never score, never reach the brief
  *  T15 L1 story           -> M3+M4 merge into one block
- *  T16 L3 story           -> M7+M8 merge into one block with sub-evidence
+  *  T16 L3 story           -> M7 live detectors merge into one block
+  *  T29 forensic-only      -> B-class content reads emit nothing
   *  T17 M1 banner          -> dead-site brief forbids outreach
   *  T18 story completeness -> every leak except M1/M2 has a story
   *  T20-T24 qualification  -> excluded-stack / ecommerce / enterprise /
@@ -171,17 +172,19 @@ function has(a: FindingInput[], module: string, category: string): boolean {
   check('T3b M3 EMERGENCY for plumbing', out.some((f) => f.module === 'phone' && f.category === 'call-missing' && f.severity === 'EMERGENCY'));
 }
 
-// T4: bare contact page -> M8 dead-contact HIGH.
+// T4 (dropped v1.4.0): bare contact page emits NO dead-contact — static
+// absence reads are ChatGPT-derivable. The scan stays silent here.
 {
   const contact = 'https://example-smb.test/contact';
   const out = buildFindings(
     artifacts({ pages: [page(HOME, true), page(contact)], links: [telLink()], phones: [goodPhone()] }),
     HOME, 'general',
   );
-  check('T4 M8 dead-contact HIGH', out.some((f) => f.module === 'mobile-ui' && f.category === 'dead-contact' && f.severity === 'HIGH'), out.map((f) => `${f.module}/${f.category}/${f.severity}`).join(', ') || 'none');
+  check('T4 dead-contact retired', !out.some((f) => f.module === 'mobile-ui' && f.category === 'dead-contact'), out.map((f) => `${f.module}/${f.category}/${f.severity}`).join(', ') || 'none');
 }
 
-// T5: malformed tel -> EMERGENCY.
+// T5 (dropped v1.4.0): malformed-tel string check retired — pure source
+// validation. Malformed-only fixture emits no phone finding at all.
 {
   const out = buildFindings(
     artifacts({
@@ -190,7 +193,7 @@ function has(a: FindingInput[], module: string, category: string): boolean {
     }),
     HOME, 'general',
   );
-  check('T5 malformed tel EMERGENCY', out.some((f) => f.module === 'phone' && f.category === 'call' && f.severity === 'EMERGENCY'));
+  check('T5 malformed tel silent', !out.some((f) => f.module === 'phone' && f.category === 'call'));
 }
 
 // T6: fail-closed guard — everything ever emitted maps to the catalog.
@@ -287,15 +290,15 @@ function has(a: FindingInput[], module: string, category: string): boolean {
 {
   const mk = (id: number): Parameters<typeof buildLlmBrief>[2][number] => ({
     id, scanId: 1, websiteId: 1, createdAt: new Date().toISOString(),
-    module: 'forms', category: 'friction', severity: 'HIGH',
-    title: 'High Form Abandonment Risk (7 visible fields)',
+    module: 'phone', category: 'call', severity: 'HIGH',
+    title: 'Phone number is not clickable (555)',
     description: 'Long form.', pageUrl: HOME,
     evidence: { page: 'x', details: {} },
   });
   const site = { id: 1, url: HOME, businessName: null, contactName: null, contactEmail: null, niche: 'general', city: null };
   const scan = { id: 1, opportunityScore: 45, status: 'completed' };
   const fresh = buildLlmBrief(site, scan, [mk(1), mk(2), mk(3)], null, 'Emon', { pagesCrawled: 5, scanDate: new Date().toISOString() });
-  const occurrences = fresh.split('High Form Abandonment Risk (7 visible fields)').length - 1;
+  const occurrences = fresh.split('Phone number is not clickable (555)').length - 1;
   check('T12 brief dedupes repeats', occurrences === 1 && fresh.includes('(found on 3 pages)'), `occurrences=${occurrences}`);
   check('T12 brief shows pages crawled', fresh.includes('Pages crawled: 5'));
   check('T12 fresh scan has no stale warning', !fresh.includes('WARNING'));
@@ -369,13 +372,18 @@ function has(a: FindingInput[], module: string, category: string): boolean {
   check('T15 M3+M4 merge into one L1 block', l1blocks === 1, `blocks=${l1blocks}`);
   check('T15 L1 keeps both sub-evidence lines', l1.includes('No callable phone number') && l1.includes('not clickable'));
 
-  // T16: M7 + M8 merge into a single L3 story block.
+  // T16: M7 live detectors merge into a single L3 story block
+  // (M8 retired v1.4.0 — dead-contact rows no longer resolve a story).
   const l3 = buildLlmBrief(site, scan, [
     row('cta', 'conversion-cta', 'EMERGENCY', 'CTA points to a broken destination ("Get Quote")'),
-    row('mobile-ui', 'dead-contact', 'HIGH', 'Contact page has no way to contact you'),
+    row('links', 'conversion-link', 'HIGH', 'Quote link returns HTTP 404'),
   ], null);
   const l3blocks = l3.split('[STORY L3]').length - 1;
-  check('T16 M7+M8 merge into one L3 block', l3blocks === 1, `blocks=${l3blocks}`);
+  check('T16 M7 detectors merge into one L3 block', l3blocks === 1, `blocks=${l3blocks}`);
+  const retired = buildLlmBrief(site, scan, [
+    row('mobile-ui', 'dead-contact', 'HIGH', 'Contact page has no way to contact you'),
+  ], null);
+  check('T16 retired M8 reaches no story', !retired.includes('[STORY'));
 
   // T17: M1 dead-site scan forbids outreach.
   const m1 = buildLlmBrief(site, scan, [
@@ -414,13 +422,13 @@ function has(a: FindingInput[], module: string, category: string): boolean {
 
   // T21: cart + checkout links → SKIP (e-commerce), lone cart link does not.
   const cartOnly = qualifySite(
-    techOf([], 'WordPress'), artifacts({ pages: [page(HOME, true)], links: [link('/cart')] }), [qf('forms', 'friction')],
+    techOf([], 'WordPress'), artifacts({ pages: [page(HOME, true)], links: [link('/cart')] }), [qf('phone', 'call')],
   );
   check('T21 lone cart link does not SKIP', cartOnly.status === 'PURSUE', JSON.stringify(cartOnly));
   const q21 = qualifySite(
     techOf([], 'WordPress'),
     artifacts({ pages: [page(HOME, true)], links: [link('/cart'), link('/checkout')] }),
-    [qf('forms', 'friction')],
+    [qf('phone', 'call')],
   );
   check('T21 cart+checkout SKIP ecommerce', q21.status === 'SKIP' && q21.rule === 'ecommerce', JSON.stringify(q21));
 
@@ -460,7 +468,7 @@ function has(a: FindingInput[], module: string, category: string): boolean {
   const m4 = { module: 'phone', category: 'call', severity: 'HIGH', priorityScore: 25, title: 'Not tappable' };
   const s25 = scoreCapped([m11, m4]);
   check('T25 M11 scores nothing', s25.score === 25 && s25.parts.length === 1, JSON.stringify(s25));
-  check('T25 isSilentLeak flags M11-M14', isSilentLeak('mobile-ui', 'layout') && isSilentLeak('forms', 'unlabeled') && isSilentLeak('security', 'email-auth') && !isSilentLeak('phone', 'call'));
+  check('T25 isSilentLeak flags M11/M12/M14 + M13 retired', isSilentLeak('mobile-ui', 'layout') && isSilentLeak('mobile-ui', 'tap-targets') && isSilentLeak('security', 'email-auth') && !isSilentLeak('phone', 'call') && leakFor('forms', 'unlabeled') === null && leakFor('forms', 'friction') === null && leakFor('forms', 'structure') === null);
 
   // T26: anchor hierarchy — L1 (rank 1) leads even with lower priority.
   const site = { id: 1, url: HOME, businessName: null, contactName: null, contactEmail: null, niche: 'general', city: null };
@@ -471,10 +479,10 @@ function has(a: FindingInput[], module: string, category: string): boolean {
     module, category, severity: 'HIGH' as const, title, description: 'd', priorityScore,
   });
   const a26 = buildLlmBrief(site, scan, [
-    arow('forms', 'friction', 'Form has 9 fields', 40),
+    arow('mobile-ui', 'above-fold', 'No action above the fold', 40),
     arow('phone', 'call', 'Phone not tappable', 20),
   ], null);
-  check('T26 anchor rank beats priority', a26.indexOf('[STORY L1]') !== -1 && a26.indexOf('[STORY L1]') < a26.indexOf('[STORY L6]'));
+  check('T26 anchor rank beats priority', a26.indexOf('[STORY L1]') !== -1 && a26.indexOf('[STORY L1]') < a26.indexOf('[STORY L5]'));
   check('T26 rank map sane', anchorRankFor('phone', 'call') === 1 && anchorRankFor('performance', 'loading') === 2 && anchorRankFor('mobile-ui', 'layout') === null);
 
   // T27: silent findings never reach the brief.
@@ -487,6 +495,27 @@ function has(a: FindingInput[], module: string, category: string): boolean {
   // T28: SKIP scan brief bans outreach (no light-touch fallback).
   const a28 = buildLlmBrief(site, { ...scan, opportunityScore: 0, qualification: 'SKIP', skipReason: 'Built on Shopify (out of scope)' }, [], null);
   check('T28 SKIP brief bans outreach', a28.includes('DO-NOT-EMAIL') && a28.includes('qualified as SKIP') && !a28.includes('light-touch check-in'));
+}
+
+// T29 (v1.4.0): B-class content reads emit nothing — 9-field unlabeled
+// no-submit form + JSON-LD-only phone produce zero form/phone findings.
+{
+  const badForm: FormInfo = {
+    page: HOME, index: 0, action: '', method: 'POST',
+    fieldCount: 9, hasEmailField: true, hasPhoneField: false, hasMessageField: true,
+    hasSubmit: false, jsSubmit: false, hasCaptcha: false, unlabeledFields: 9,
+    fields: Array.from({ length: 9 }, (_, i) => ({ name: `f${i}`, type: 'text', required: false, labeled: false })),
+  };
+  const out = buildFindings(
+    artifacts({
+      pages: [page(HOME, true)],
+      phones: [{ raw: '(555) 999-0000', normalized: '+15559990000', e164: '+15559990000', isValid: true, page: HOME, hasTelLink: false, telMalformed: false, codeOnly: true }],
+      forms: [badForm],
+    }),
+    HOME, 'general',
+  );
+  const banned = out.filter((f) => f.module === 'forms' || f.category === 'dead-contact' || f.category === 'unlabeled' || f.category === 'friction' || f.category === 'structure');
+  check('T29 content reads emit nothing', banned.length === 0, banned.map((f) => `${f.module}/${f.category}`).join(', '));
 }
 
 if (failures > 0) {

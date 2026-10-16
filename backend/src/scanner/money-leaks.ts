@@ -13,6 +13,12 @@
  *  (The passive security_checks tab still shows raw header data for
  *  client meetings — it just never becomes a finding.)
  *
+ * Dropped v1.4.0 (forensic-only thesis): M8/M9/M13 — static HTML reads
+ * (form structure, field counts, labels, dead-contact path) that ChatGPT
+ * derives from source. Their `match` lists are empty so `leakFor()` maps
+ * them to null: old DB rows retire as legacy (silent), new scans never
+ * emit them. Stories L3/L6 keep their IDs for history.
+ *
  * Evidence bar: every leak fires ONLY on corroborated measurement
  * (DOM + browser pass, or probe + headers). Uncorroborated claims are
  * demoted by the intelligence layer, never shouted.
@@ -114,10 +120,9 @@ export const MONEY_LEAKS: MoneyLeak[] = [
   {
     id: 'M8',
     name: 'Contact form goes nowhere',
-    match: [
-      { module: 'forms', category: 'structure' },
-      { module: 'mobile-ui', category: 'dead-contact' },
-    ],
+    // Deprecated v1.4.0: static HTML read (ChatGPT-derivable). Empty match
+    // retires old rows as legacy; new scans never emit this.
+    match: [],
     ownerPain: 'Customers fill the form and their request silently vanishes — or cannot be sent at all.',
     emailSubject: 'Your contact form goes nowhere',
     whyTheyPay: 'Every lost submission is a job for a competitor. Endpoint fix is small, value is obvious.',
@@ -126,7 +131,8 @@ export const MONEY_LEAKS: MoneyLeak[] = [
   {
     id: 'M9',
     name: 'Quote form scares people off (7+ fields)',
-    match: [{ module: 'forms', category: 'friction' }],
+    // Deprecated v1.4.0: static field count (ChatGPT-derivable).
+    match: [],
     ownerPain: 'Seven or more fields on a phone screen — most visitors quit halfway (industry: 3–4 fields optimal).',
     emailSubject: 'Your quote form asks too much',
     whyTheyPay: 'Cutting fields is the cheapest conversion lift in existence; benchmarks back every word.',
@@ -162,7 +168,8 @@ export const MONEY_LEAKS: MoneyLeak[] = [
   {
     id: 'M13',
     name: 'Quote form fields have no labels',
-    match: [{ module: 'forms', category: 'unlabeled' }],
+    // Deprecated v1.4.0: static HTML read (ChatGPT-derivable).
+    match: [],
     ownerPain: 'Visitors stare at blank boxes unsure what to type — and abandon the form.',
     emailSubject: 'Your form fields confuse visitors',
     whyTheyPay: 'Labels are the cheapest form fix in existence; every confused visitor is a lost quote.',

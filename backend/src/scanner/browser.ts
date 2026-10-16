@@ -729,11 +729,11 @@ async function runViewport(
       return base;
     }
 
-    // Hero captures (one per viewport): the outreach-visible proof that
-    // the scan really looked at the page. Mobile 390x1300 is the money
-    // shot; tablet/desktop ride along cheaply so the Evidence tab can show
-    // every viewport. Recheck passes (shotTag) skip it: evidence must come
-    // from the main pass.
+    // Hero captures dropped v1.4.0 (forensic-only): heroes/annotated were
+    // outreach cosmetics no detector reads. The settled-DOM snapshot
+    // stays — it feeds phone/form extractors JS-rendered content.
+    // Per-finding evidence close-ups (ev-*.webp) also stay: they are the
+    // visual proof attached to measured findings.
     if (!opts.shotTag && !base.loadError) {
       // Settled DOM snapshot (mobile homepage): feeds phone/form
       // extractors a second time so JS-injected numbers and forms that
@@ -745,83 +745,6 @@ async function runViewport(
         } catch {
           base.renderedHtml = null;
         }
-      }
-      try {
-        await fs.mkdir(dir, { recursive: true });
-        await page.setViewportSize({ width: vp.width, height: 1300 });
-        await page.evaluate('window.scrollTo(0, 0)').catch(() => undefined);
-        await page.waitForTimeout(300);
-        const heroBuf = await page.screenshot({ timeout: 15000 });
-        const { default: sharp } = await import('sharp');
-        await sharp(heroBuf).webp({ quality: 80 }).toFile(path.join(dir, `${tag}-hero.webp`));
-        base.heroCropPath = path.join(dir, `${tag}-hero.webp`);
-      } catch {
-        /* hero is optional — findings still stand without it */
-      } finally {
-        await page.setViewportSize({ width: vp.width, height: vp.height }).catch(() => undefined);
-        await page.evaluate('window.scrollTo(0, 0)').catch(() => undefined);
-      }
-    }
-    // Module-5 visual evidence highlighter: red-outline critical offenders
-    // on a SEPARATE annotated copy (plain hero stays untouched for AI).
-    // Offenders: phone plain-text numbers + overflow element + elements
-    // covering the primary CTA. Outline removed immediately after capture.
-    if (name === 'mobile' && !opts.shotTag && !base.loadError) {
-      try {
-        const targets: string[] = [];
-        for (const o of base.phoneHitTest?.offenders ?? []) {
-          if (o.selector && targets.length < 8) targets.push(o.selector);
-        }
-        if (base.overflowOffender?.selector && targets.length < 8) {
-          targets.push(base.overflowOffender.selector);
-        }
-        for (const o of observations) {
-          if (targets.length >= 8) break;
-          if ((o.verdict === 'COVERED' || o.verdict === 'HIDDEN') && o.cover?.selector) {
-            targets.push(o.cover.selector);
-          }
-        }
-        if (targets.length > 0) {
-          await fs.mkdir(dir, { recursive: true });
-          await page.evaluate(`(function(sels){
-            window.__hlMarked = [];
-            for (var i = 0; i < sels.length; i++) {
-              try {
-                var el = document.querySelector(sels[i]);
-                if (!el || !(el instanceof Element)) continue;
-                el.setAttribute('data-cls-hl', '1');
-                el.style.setProperty('outline', '4px solid #dc2626', 'important');
-                el.style.setProperty('outline-offset', '2px', 'important');
-                window.__hlMarked.push(el);
-              } catch (e) {}
-            }
-          })(${JSON.stringify(targets)})`).catch(() => undefined);
-          await page.setViewportSize({ width: vp.width, height: 1300 });
-          await page.evaluate('window.scrollTo(0, 0)').catch(() => undefined);
-          await page.waitForTimeout(300);
-          const annBuf = await page.screenshot({ timeout: 15000 });
-          const { default: sharp } = await import('sharp');
-          await sharp(annBuf).webp({ quality: 80 }).toFile(path.join(dir, `${tag}-hero-annotated.webp`));
-          base.annotatedCropPath = path.join(dir, `${tag}-hero-annotated.webp`);
-        }
-      } catch {
-        /* annotated shot is optional — plain hero + findings still stand */
-      } finally {
-        await page
-          .evaluate(`(function(){
-            try {
-              var marked = window.__hlMarked || [];
-              for (var i = 0; i < marked.length; i++) {
-                marked[i].style.removeProperty('outline');
-                marked[i].style.removeProperty('outline-offset');
-                marked[i].removeAttribute('data-cls-hl');
-              }
-              window.__hlMarked = [];
-            } catch (e) {}
-          })()`)
-          .catch(() => undefined);
-        await page.setViewportSize({ width: vp.width, height: vp.height }).catch(() => undefined);
-        await page.evaluate('window.scrollTo(0, 0)').catch(() => undefined);
       }
     }
     // can move elements between first detection and the hero capture, so the
