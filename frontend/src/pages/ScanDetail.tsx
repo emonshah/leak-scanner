@@ -22,6 +22,7 @@ export function ScanDetail() {
   const [tech, setTech] = useState<Record<string, unknown> | null>(null);
   const [pages, setPages] = useState<Array<Record<string, unknown>>>([]);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [showAllSec, setShowAllSec] = useState(false);
 
   const { scan, isLoading, error, refetch } = useScan(scanId, 3000);
   const isActive = scan?.status === 'scanning' || scan?.status === 'pending' || scan?.status === 'paused';
@@ -429,17 +430,40 @@ export function ScanDetail() {
 
         {activeTab === 'security' && (
           <div className="space-y-2">
-            {(securityChecks as Array<{ checkId: string; title: string; status: string; risk: string; recommendation: string }>).map((c, i) => (
-              <div key={i} className="panel p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium text-ink">{c.title}</span>
-                  <StatusBadge status={c.status as ScanRow['status']} />
-                </div>
-                <p className={`mt-1 text-xs ${c.status === 'FAIL' ? 'text-neon-red' : c.status === 'WARNING' ? 'text-neon-amber' : 'text-inkdim'}`}>{c.status} · {c.risk}</p>
-                {c.recommendation && <p className="mt-1 text-sm text-inkdim">{c.recommendation}</p>}
-              </div>
-            ))}
-            {securityChecks.length === 0 && <p className="text-sm text-inkdim">No security checks yet.</p>}
+            {(() => {
+              const list = securityChecks as Array<{ checkId: string; title: string; status: string; risk: string; recommendation: string }>;
+              const risky = list.filter((c) => c.status === 'FAIL' || c.status === 'WARNING' || c.status === 'REQUIRES_MANUAL_REVIEW');
+              const shown = showAllSec ? list : risky;
+              return (
+                <>
+                  {list.length > 0 && (
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-inkdim">
+                        {risky.length === 0
+                          ? 'No risks found — all checks passed.'
+                          : `${risky.length} risk${risky.length === 1 ? '' : 's'} need attention.`}
+                      </p>
+                      {list.length !== risky.length && (
+                        <button onClick={() => setShowAllSec((v) => !v)} className="btn-ghost px-2 py-1 text-[11px]">
+                          {showAllSec ? `Hide passed (${list.length - risky.length})` : `Show all ${list.length} checks`}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {shown.map((c, i) => (
+                    <div key={i} className="panel p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-ink">{c.title}</span>
+                        <StatusBadge status={c.status as ScanRow['status']} />
+                      </div>
+                      <p className={`mt-1 text-xs ${c.status === 'FAIL' ? 'text-neon-red' : c.status === 'WARNING' ? 'text-neon-amber' : 'text-inkdim'}`}>{c.status} · {c.risk}</p>
+                      {c.recommendation && <p className="mt-1 text-sm text-inkdim">{c.recommendation}</p>}
+                    </div>
+                  ))}
+                  {list.length === 0 && <p className="text-sm text-inkdim">No security checks yet.</p>}
+                </>
+              );
+            })()}
           </div>
         )}
 
