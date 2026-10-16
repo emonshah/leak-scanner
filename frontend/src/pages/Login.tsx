@@ -102,7 +102,7 @@ export function Login() {
           </div>
 
           <p className="mt-4 text-center text-xs text-inkdim/60">
-            First run? Use the setup wizard at <code className="text-primary-hover">/setup</code>.
+            Sign in with the admin account from <code className="text-primary-hover">backend/.env</code> (ADMIN_EMAIL).
           </p>
         </div>
       </div>

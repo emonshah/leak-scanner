@@ -15,15 +15,17 @@ koro" meaning: implement + verify + push + tag, per the flow below.
   lead_status). `scoreCapped()` in `intelligence.ts` is the ONE scoring math
   (pipeline and manual-delete both use it — never duplicate it).
 - `backend/src/routes/` — API (`websites.ts`, `scans.ts`, `outreach.ts`,
-  `health.ts`, `setup.ts`). Auth: session cookie → `authUser(req)`;
+  `health.ts`). Auth: session cookie → `authUser(req)`;
   admin-only routes use `preHandler: [requireAdmin]`.
 - `frontend/src/` — React + Vite + Tailwind-ish custom classes (`panel`,
   `btn-primary`, `btn-ghost`, `field`). API via `@/api/client` (same-origin,
   cookies included). Version banner: `components/UpdateBanner.tsx`.
 - Run mode is XAMPP/npm only (no Docker): backend `npm run build + start`
   (`:3000`), frontend `npm run build`, MySQL via XAMPP/localhost (`:3306`).
-  First run goes through the Setup Wizard page (`/setup`) which takes
-  DB name/user/pass + admin account and writes `.env` + schema itself.
+  No setup wizard: DB + admin come from `backend/.env` (see root
+  `.env.example`); the backend creates the schema and seeds the admin
+  from `ADMIN_*` on every boot, and exits with an English error when
+  MySQL is unreachable.
 - `VERSION` + `*/package.json` — release version, always in sync (x.y.z).
 
 ## 2. The update flow (EVERY change ships this way)
@@ -70,7 +72,8 @@ koro" meaning: implement + verify + push + tag, per the flow below.
 - **Windows members**: XAMPP + Node 20 required (`npx playwright install
   chrome` once). One-click run: double-click `Start-LeakScanner.bat`
   (or `npm run start:win`) — prod single-port `:3000`, first run opens the
-  Setup Wizard. Never fight the owner's local dev ports (3000/3306/5173).
+  login page (DB + admin come from `backend/.env`). Never fight the owner's
+  local dev ports (3000/3306/5173).
 
 ## 4. Release checklist (before every tag)
 

@@ -1,8 +1,6 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { useSetup } from '@/hooks/useSetup';
 import { Login } from '@/pages/Login';
-import { SetupWizard } from '@/pages/SetupWizard';
 import { Dashboard } from '@/pages/Dashboard';
 import { Websites } from '@/pages/Websites';
 import { ScanDetail } from '@/pages/ScanDetail';
@@ -19,37 +17,20 @@ function RequireAuth({ children }: { children: JSX.Element }) {
   return children;
 }
 
-function SetupGate({ children }: { children: JSX.Element }) {
-  const { configured, isLoading } = useSetup();
-  if (isLoading) return <div className="p-6 text-sm text-inkdim">Checking configuration…</div>;
-  if (!configured) return <Navigate to="/setup" replace />;
-  return children;
-}
-
-// Inverse gate for /login: when the DB is gone (tables dropped) the app is
-// unconfigured, so showing a dead login form is wrong — bounce to /setup.
-function LoginGate({ children }: { children: JSX.Element }) {
-  const { configured, isLoading } = useSetup();
-  if (isLoading) return <div className="p-6 text-sm text-inkdim">Checking configuration…</div>;
-  if (configured === false) return <Navigate to="/setup" replace />;
-  return children;
-}
-
 function Shell() {
   return (
-    <SetupGate>
-      <RequireAuth>
-        <Layout />
-      </RequireAuth>
-    </SetupGate>
+    <RequireAuth>
+      <Layout />
+    </RequireAuth>
   );
 }
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginGate><Login /></LoginGate>} />
-      <Route path="/setup" element={<SetupWizard />} />
+      <Route path="/login" element={<Login />} />
+      {/* Legacy wizard URL — configuration now lives in backend/.env. */}
+      <Route path="/setup" element={<Navigate to="/login" replace />} />
       <Route element={<Shell />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/websites" element={<Websites />} />

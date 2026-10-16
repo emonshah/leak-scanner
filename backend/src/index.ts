@@ -12,11 +12,9 @@ import { websiteRoutes } from './routes/websites.js';
 import { scanRoutes } from './routes/scans.js';
 import { outreachRoutes } from './routes/outreach.js';
 import { updateRoutes } from './routes/updates.js';
-import { setupRoutes } from './routes/setup.js';
 import { closeBrowser } from './scanner/browser.js';
 import { ensureSeedAdmin, ensureOwnershipBackfill, getSessionUser } from './services/auth.js';
 import { requestStop } from './services/queue-state.js';
-import { isSetupComplete, isSetupHealthy, invalidateSetupCache, getEnvDbConfig } from './services/setup.js';
 import { createLogger } from './utils/logger.js';
 import { logActivity } from './services/scans.js';
 
@@ -88,10 +86,6 @@ async function main(): Promise<void> {
     '/api/auth/login',
     '/api/auth/logout',
     '/api/auth/seed-admin',
-    '/api/setup/status',
-    '/api/setup/validate-db',
-    '/api/setup',
-    '/api/setup/restart',
   ]);
 
   app.addHook('onRequest', async (req, reply) => {
@@ -101,9 +95,6 @@ async function main(): Promise<void> {
     const isApi = url.startsWith('/api/');
     if (!isApi) return;
     if (isPublic) return;
-    if (!(await isSetupHealthy())) {
-      return reply.code(503).send({ ok: false, error: 'Server not configured. Run setup first.' });
-    }
     try {
       const u = await getSessionUser(req);
       if (!u) {
@@ -117,7 +108,6 @@ async function main(): Promise<void> {
     }
   });
 
-  await app.register(setupRoutes);
   await app.register(healthRoutes);
   await app.register(authRoutes);
   await app.register(websiteRoutes);
@@ -142,37 +132,23 @@ async function main(): Promise<void> {
     return reply.code(status).send({ ok: false, error: err.message ?? 'Internal error' });
   });
 
+  // Env-only configuration: DB + admin come from backend/.env (see
+  // .env.example). The schema is idempotent, the admin seed is keyed on
+  // email — safe to run on every boot. Fail fast when MySQL is unreachable
+  // so the terminal shows the real problem instead of a half-working server.
   try {
-    let healthy = await isSetupHealthy();
-    if (!healthy && getEnvDbConfig()) {
-      // Env-based deploy: no wizard, no flag file. When
-      // DB credentials come from the environment, self-configure on boot:
-      // create schema + seed admin from ADMIN_* env, then re-check.
-      try {
-        await ensureSchema();
-        await ensureSeedAdmin();
-        await ensureOwnershipBackfill();
-        invalidateSetupCache();
-        healthy = await isSetupHealthy();
-        if (healthy) {
-          void logActivity(null, 'system', 'boot', { adminEmail: config.auth.adminEmail });
-          logger.info(`Self-configured from environment. Seed admin ready: ${config.auth.adminEmail}`);
-        }
-      } catch (err) {
-        logger.warn(`Env self-configure failed: ${err instanceof Error ? err.message : err}`);
-      }
-    }
-    if (healthy) {
-      await ensureSchema();
-      await ensureSeedAdmin();
-      await ensureOwnershipBackfill();
-      void logActivity(null, 'system', 'boot', { adminEmail: config.auth.adminEmail });
-      logger.info(`Seed admin ready: ${config.auth.adminEmail}`);
-    } else {
-      logger.warn('Server is in SETUP mode — DB not configured. Complete setup via the frontend wizard.');
-    }
+    await ensureSchema();
+    await ensureSeedAdmin();
+    await ensureOwnershipBackfill();
+    void logActivity(null, 'system', 'boot', { adminEmail: config.auth.adminEmail });
+    logger.info(`Database ready. Seed admin: ${config.auth.adminEmail}`);
   } catch (err) {
-    logger.warn(`Startup DB check skipped: ${err instanceof Error ? err.message : err}`);
+    logger.error(
+      `Cannot start: database unreachable at ${config.db.host}:${config.db.port}/${config.db.database} ` +
+        `as ${config.db.user}. Check DB_* in backend/.env and start MySQL, then restart. ` +
+        `(${err instanceof Error ? err.message : err})`,
+    );
+    process.exit(1);
   }
 
   await app.listen({ port: config.port, host: '0.0.0.0' });

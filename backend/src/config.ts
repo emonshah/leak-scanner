@@ -23,7 +23,8 @@ export const config = {
     host: env('DB_HOST', 'localhost'),
     port: envInt('DB_PORT', 3306),
     user: env('DB_USER', 'leak_scanner'),
-    password: env('DB_PASS', ''),
+    // Canonical key is DB_PASS; DB_PASSWORD accepted as an alias.
+    password: env('DB_PASS', env('DB_PASSWORD', '')),
     database: env('DB_NAME', 'leak_scanner'),
   },
   scan: {
@@ -48,8 +49,8 @@ export const config = {
 } as const;
 
 export function logConfigSummary(logger: { warn: (m: string) => void }): void {
-  if (!process.env['DB_PASS']) {
-    logger.warn('DB_PASS is empty. MySQL will be wired in — set it in .env then.');
+  if (!process.env['DB_PASS'] && !process.env['DB_PASSWORD']) {
+    logger.warn('Neither DB_PASS nor DB_PASSWORD is set. Set it in backend/.env, then restart.');
   }
   if (!process.env['AUTH_SECRET']) {
     logger.warn('AUTH_SECRET is not set — using an insecure default. Set a long random value in .env.');

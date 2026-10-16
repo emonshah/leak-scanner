@@ -34,18 +34,22 @@ frontend, downloads the scan browser (~170 MB). Later runs start in ~30 s.
 The app opens at **http://localhost:3000**. Keep the terminal window open
 (Ctrl+C stops the server).
 
-## First run — Setup Wizard
+## Configure the database (.env)
 
-The browser lands on `/setup`. Fill in:
+No setup page — everything comes from **`backend/.env`**:
 
-1. **Database** — host `localhost`, port `3306`, your MySQL database name,
-   user and password. The schema is created automatically.
-2. **Admin account** — email, name, password (8+ chars), then press
-   **Generate** for the auth secret.
-3. **Run Setup** → **Restart Server** → you are sent to the login page.
+1. Copy the template: `copy ..\.env.example backend\.env` (Windows) or
+   `cp .env.example backend/.env` (Linux), then edit it.
+2. Set **Database** — `DB_HOST=localhost`, `DB_PORT=3306`, `DB_NAME`,
+   `DB_USER`, `DB_PASS` (your MySQL credentials from XAMPP).
+3. Set **Admin account** — `ADMIN_EMAIL`, `ADMIN_NAME`, `ADMIN_PASSWORD`
+   (8+ chars), plus a long random `AUTH_SECRET`.
+4. Start the server. The schema is created automatically and the admin
+   user is seeded from `ADMIN_*` on first boot.
 
-Sign in with the admin email + password you just created. The wizard writes
-`backend/.env` on this machine only — never commit or share it.
+Sign in at **http://localhost:3000/login** with that admin email +
+password. `backend/.env` stays on this machine only — never commit or
+share it.
 
 ## Development mode (optional, hot reload)
 

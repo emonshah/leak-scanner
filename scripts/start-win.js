@@ -7,7 +7,7 @@
  *   2. First run only: npm ci, backend+frontend build, Playwright Chrome.
  *   3. Starts backend (which also serves frontend/dist) on :3000
  *      and opens http://localhost:3000 in the browser.
- *      First ever run lands on the Setup Wizard page (DB + admin).
+ *      First ever run opens the login page (DB + admin come from backend/.env).
  *
  * Flags:  node scripts/start-win.js --check-only   (checks only, no changes)
  *
