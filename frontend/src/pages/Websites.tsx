@@ -48,7 +48,7 @@ export function Websites() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [copiedScanId, setCopiedScanId] = useState<number | null>(null);
   const [copiedEmailId, setCopiedEmailId] = useState<number | null>(null);
-  const [leadFilter, setLeadFilter] = useState<'all' | 'to-message' | 'skipped' | 'contacted'>('all');
+  const [leadFilter, setLeadFilter] = useState<'all' | 'to-message' | 'pursue' | 'disqualified' | 'skipped' | 'contacted'>('all');
 
   const handleCopyBrief = async (scanId: number) => {
     try {
@@ -222,10 +222,14 @@ export function Websites() {
 
   const isWorkable = (w: WebsiteDTO) => w.leadStatus === 'new' || w.leadStatus === 'qualified';
   const toMessageCount = websites.filter((w) => w.suggestedAction?.action === 'message' && isWorkable(w)).length;
+  const pursueCount = websites.filter((w) => w.latestScan?.qualification === 'PURSUE' && isWorkable(w)).length;
+  const disqualifiedCount = websites.filter((w) => w.latestScan?.qualification === 'SKIP').length;
   const skippedCount = websites.filter((w) => w.leadStatus === 'skipped').length;
   const contactedCount = websites.filter((w) => w.leadStatus === 'contacted' || w.leadStatus === 'replied').length;
   const visible = websites.filter((w) => {
     if (leadFilter === 'to-message') return w.suggestedAction?.action === 'message' && isWorkable(w);
+    if (leadFilter === 'pursue') return w.latestScan?.qualification === 'PURSUE' && isWorkable(w);
+    if (leadFilter === 'disqualified') return w.latestScan?.qualification === 'SKIP';
     if (leadFilter === 'skipped') return w.leadStatus === 'skipped';
     if (leadFilter === 'contacted') return w.leadStatus === 'contacted' || w.leadStatus === 'replied';
     return true;
@@ -235,11 +239,15 @@ export function Websites() {
   const exportHref =
     leadFilter === 'to-message'
       ? '/api/leads/export?format=csv&minScore=10&excludeActed=1'
-      : leadFilter === 'skipped'
-        ? '/api/leads/export?format=csv&leadStatus=skipped'
-        : leadFilter === 'contacted'
-          ? '/api/leads/export?format=csv&leadStatus=contacted,replied'
-          : '/api/leads/export?format=csv';
+      : leadFilter === 'pursue'
+        ? '/api/leads/export?format=csv&minScore=10&excludeActed=1&qualification=PURSUE'
+        : leadFilter === 'disqualified'
+          ? '/api/leads/export?format=csv&qualification=SKIP'
+          : leadFilter === 'skipped'
+            ? '/api/leads/export?format=csv&leadStatus=skipped'
+            : leadFilter === 'contacted'
+              ? '/api/leads/export?format=csv&leadStatus=contacted,replied'
+              : '/api/leads/export?format=csv';
 
   return (
     <div className="space-y-6">
@@ -397,6 +405,8 @@ export function Websites() {
             {([
               { key: 'all', label: `All (${websites.length})`, Icon: LayoutGrid },
               { key: 'to-message', label: `To message (${toMessageCount})`, Icon: MessageCircle },
+              { key: 'pursue', label: `Pursue (${pursueCount})`, Icon: Zap },
+              { key: 'disqualified', label: `Disqualified (${disqualifiedCount})`, Icon: SkipForward },
               { key: 'skipped', label: `Skipped (${skippedCount})`, Icon: SkipForward },
               { key: 'contacted', label: `Contacted (${contactedCount})`, Icon: Send },
             ] as const).map((t) => (

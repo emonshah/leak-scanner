@@ -289,6 +289,12 @@ export function ScanDetail() {
             {actionError}
           </div>
         )}
+        {scan.qualification === 'SKIP' && (
+          <div className="rounded-xl border border-neon-red/40 bg-neon-red/10 px-4 py-3 text-sm text-neon-red" title="Disqualified by the PURSUE vs SKIP gate — excluded from outreach">
+            <span className="font-bold uppercase tracking-wider">Disqualified (SKIP)</span>
+            <span> — {scan.skipReason ?? 'no outreach-worthy leaks'}. This scan is excluded from outreach and exports.</span>
+          </div>
+        )}
         <div className="panel p-6">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
@@ -368,7 +374,9 @@ export function ScanDetail() {
               </div>
             )}
             {findings.length === 0 ? (
-              scan.status === 'blocked' || scan.status === 'failed' ? (
+              scan.qualification === 'SKIP' ? (
+                <p className="text-sm text-inkdim">No findings — disqualified: {scan.skipReason ?? 'no outreach-worthy leaks'}.</p>
+              ) : scan.status === 'blocked' || scan.status === 'failed' ? (
                 <div className="panel flex flex-col items-center p-8 text-center">
                   <ShieldAlert className="h-8 w-8 text-neon-amber" />
                   <p className="mt-2 text-sm font-medium text-ink">
