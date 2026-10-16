@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { apiPost, apiPatch, apiDelete, apiFetch } from '@/api/client';
-import { Plus, Globe, ExternalLink, X, Upload, Download, Zap, Eye, Loader2, Check, Code2, Copy, SkipForward, MessageCircle, Send, LayoutGrid, ArrowDown, Trash2 } from 'lucide-react';
+import { Plus, Globe, ExternalLink, X, Upload, Download, Zap, Eye, Loader2, Check, Code2, Copy, SkipForward, MessageCircle, Send, LayoutGrid, ArrowDown, Trash2, RotateCcw } from 'lucide-react';
 import type { WebsiteDTO, LeadStatus } from '@/types';
 import { StatusBadge } from '@/components/StatusBadge';
 import { LeadStatusBadge } from '@/components/LeadStatusBadge';
@@ -531,50 +531,51 @@ export function Websites() {
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-5 py-3 text-right">
-                      <span className="inline-flex items-center gap-1.5">
+                      <span className="inline-flex items-center gap-1">
                         {isWorkable(w) && (
                           <button
                             onClick={() => handleLeadStatus(w.id, 'skipped')}
                             title={w.suggestedAction ? w.suggestedAction.reason : 'Skip this client'}
-                            className="btn-ghost px-2 py-1 text-[11px]"
+                            className="btn-ghost p-1.5"
                           >
-                            <SkipForward className="h-3 w-3" /> Skip
+                            <SkipForward className="h-3.5 w-3.5" />
                           </button>
                         )}
                         <select
                           value={w.leadStatus}
                           onChange={(e) => handleLeadStatus(w.id, e.target.value as LeadStatus)}
                           title="Lead pipeline status"
-                          className="rounded-lg border border-hairline bg-white/[0.04] px-1.5 py-1 text-[11px] text-inkdim focus:outline-none"
+                          className="rounded-lg border border-hairline bg-white/[0.04] px-1 py-1 text-[11px] text-inkdim focus:outline-none"
                         >
                           {(['new', 'qualified', 'skipped', 'contacted', 'replied'] as const).map((s) => (
                             <option key={s} value={s}>{s}</option>
                           ))}
                         </select>
                         {ls && (
-                          <Link to={`/scans/${ls.id}`} className="btn-ghost px-2 py-1 text-[11px]">
-                            <Eye className="h-3 w-3" /> View
+                          <Link to={`/scans/${ls.id}`} title="View scan" className="btn-ghost p-1.5">
+                            <Eye className="h-3.5 w-3.5" />
                           </Link>
                         )}
                         {ls && ls.status !== 'scanning' && ls.status !== 'pending' && (
                           <button
                             onClick={() => void handleCopyBrief(ls.id)}
                             title={copiedScanId === ls.id ? 'Copied! Paste into any LLM' : 'Copy LLM brief (paste into ChatGPT/Claude/Gemini)'}
-                            className="btn-ghost px-2 py-1 text-[11px]"
+                            className="btn-ghost p-1.5"
                           >
                             {copiedScanId === ls.id ? (
-                              <><Check className="h-3 w-3 text-neon-green" /> Copied</>
+                              <Check className="h-3.5 w-3.5 text-neon-green" />
                             ) : (
-                              <><Code2 className="h-3 w-3" /> Copy</>
+                              <Code2 className="h-3.5 w-3.5" />
                             )}
                           </button>
                         )}
                         <button
                           onClick={() => handleScan(w.id)}
                           disabled={!!running}
-                          className="btn-primary px-2 py-1 text-[11px] disabled:opacity-40"
+                          title={running ? 'Scanning…' : ls ? 'Re-scan' : 'Scan'}
+                          className="btn-primary p-1.5 disabled:opacity-40"
                         >
-                          {running ? 'Scanning…' : ls ? 'Re-scan' : 'Scan'}
+                          <RotateCcw className={`h-3.5 w-3.5 ${running ? 'animate-spin' : ''}`} />
                         </button>
                       </span>
                     </td>

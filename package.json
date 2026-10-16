@@ -1,6 +1,6 @@
 {
   "name": "leak-scanner",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "description": "Full-stack conversion leak scanner - monorepo with backend and frontend",
   "private": true,
   "workspaces": [
