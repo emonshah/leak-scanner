@@ -9,7 +9,7 @@ export function Login() {
   const location = useLocation();
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/';
 
-  const [email, setEmail] = useState('admin@local.test');
+  const [email, setEmail] = useState('emon@gmail.com');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
