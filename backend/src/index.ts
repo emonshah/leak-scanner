@@ -16,7 +16,7 @@ import { closeBrowser } from './scanner/browser.js';
 import { ensureSeedAdmin, ensureOwnershipBackfill, getSessionUser } from './services/auth.js';
 import { requestStop } from './services/queue-state.js';
 import { createLogger } from './utils/logger.js';
-import { logActivity } from './services/scans.js';
+import { failOrphanedScans, logActivity } from './services/scans.js';
 
 const logger = createLogger();
 logConfigSummary(logger);
@@ -140,6 +140,11 @@ async function main(): Promise<void> {
     await ensureSchema();
     await ensureSeedAdmin();
     await ensureOwnershipBackfill();
+    // Heal scans orphaned by an earlier crash/restart (their in-memory
+    // worker is gone, so 'scanning'/'pending' rows would spin forever and
+    // block Retry). Idempotent.
+    const healed = await failOrphanedScans();
+    if (healed > 0) logger.info(`Marked ${healed} orphaned scan(s) as failed — Retry is available for them.`);
     void logActivity(null, 'system', 'boot', { adminEmail: config.auth.adminEmail });
     logger.info(`Database ready. Seed admin: ${config.auth.adminEmail}`);
   } catch (err) {

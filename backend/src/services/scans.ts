@@ -929,6 +929,21 @@ export async function getWebsiteNiche(websiteId: number): Promise<string> {
   }
 }
 
+/**
+ * Boot heal: any scan left in 'scanning'/'pending' belongs to a worker that
+ * no longer exists (the queue is in-memory, so it is always empty at boot).
+ * Mark them failed so the UI stops spinning and Retry works again.
+ * Returns the affected row count. Idempotent — safe on every boot.
+ */
+export async function failOrphanedScans(): Promise<number> {
+  const [result] = await getPool().query(
+    `UPDATE scans SET status = 'failed', completed_at = NOW(),
+       error = 'Scan worker stopped before finishing (server restarted). Press Retry to run it again.'
+     WHERE status IN ('scanning', 'pending')`,
+  );
+  return (result as { affectedRows: number }).affectedRows ?? 0;
+}
+
 export async function resetScanForRetry(id: number): Promise<void> {
   const pool = getPool();
   await pool.query('DELETE FROM findings WHERE scan_id = ?', [id]);
